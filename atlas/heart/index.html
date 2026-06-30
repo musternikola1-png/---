@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>MedHub 3D — Сердце</title>
+<style>
+  @import url('https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/inter.css');
+
+  :root{
+    --bg:#070b14;
+    --panel:#0e1626;
+    --panel-border:#1d2a45;
+    --cyan:#27d6e8;
+    --cyan-dim:#13414a;
+    --text:#e8edf7;
+    --text-dim:#7e8aa6;
+    --red:#ff5c5c;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg);
+    font-family:'Inter', system-ui, sans-serif;
+    color:var(--text);
+  }
+
+  #canvas-wrap{ position:fixed; inset:0; }
+  canvas{ display:block; touch-action:none; }
+
+  /* верхняя панель */
+  .topbar{
+    position:fixed; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px;
+    background:linear-gradient(180deg, rgba(7,11,20,0.95) 0%, rgba(7,11,20,0) 100%);
+    z-index:10;
+    pointer-events:none;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{
+    width:30px; height:30px; border-radius:8px;
+    background:var(--cyan); color:#04161a;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:15px; letter-spacing:-0.5px;
+  }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+  .brand-text b{ font-size:15px; font-weight:700; letter-spacing:0.2px; }
+  .brand-text span{ font-size:11px; color:var(--text-dim); letter-spacing:0.3px; }
+
+  .organ-label{
+    text-align:right;
+  }
+  .organ-label .eyebrow{
+    font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--cyan); font-weight:600;
+  }
+  .organ-label h1{
+    margin:2px 0 0; font-size:20px; font-weight:700; letter-spacing:-0.2px;
+  }
+
+  /* нижняя панель управления */
+  .controls{
+    position:fixed; bottom:0; left:0; right:0;
+    padding:0 16px 22px;
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    background:linear-gradient(0deg, rgba(7,11,20,0.97) 10%, rgba(7,11,20,0) 100%);
+    z-index:10;
+  }
+
+  .view-toggle{
+    display:flex; background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:14px; padding:4px;
+    width:100%; max-width:340px;
+  }
+  .view-toggle button{
+    flex:1; border:none; background:transparent; color:var(--text-dim);
+    font-family:inherit; font-size:13.5px; font-weight:600;
+    padding:11px 8px; border-radius:10px; cursor:pointer;
+    transition:background .2s ease, color .2s ease;
+  }
+  .view-toggle button.active{
+    background:var(--cyan); color:#04161a;
+  }
+
+  .hint{
+    font-size:12px; color:var(--text-dim); letter-spacing:0.2px;
+  }
+
+  /* загрузка */
+  #loading{
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--bg); gap:18px;
+    transition:opacity .4s ease;
+  }
+  .pulse{
+    width:64px; height:64px; border-radius:50%;
+    border:3px solid var(--cyan-dim);
+    border-top-color:var(--cyan);
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loading p{ color:var(--text-dim); font-size:13px; letter-spacing:0.3px; }
+  #loading b{ color:var(--text); font-size:15px; }
+  .bar-track{
+    width:200px; height:4px; border-radius:4px; background:var(--panel-border); overflow:hidden;
+  }
+  .bar-fill{
+    height:100%; width:0%; background:var(--cyan);
+    transition:width .15s ease;
+  }
+
+  #error{
+    position:fixed; inset:0; z-index:31; display:none;
+    align-items:center; justify-content:center; background:var(--bg);
+    text-align:center; padding:24px;
+  }
+  #error.show{ display:flex; flex-direction:column; gap:8px; }
+  #error b{ color:var(--red); font-size:15px; }
+  #error span{ color:var(--text-dim); font-size:13px; max-width:280px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .pulse{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">M</div>
+    <div class="brand-text">
+      <b>MedHub</b>
+      <span>3D Atlas · Beta</span>
+    </div>
+  </div>
+  <div class="organ-label">
+    <div class="eyebrow">Сердечно-сосудистая система</div>
+    <h1>Сердце</h1>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="view-toggle">
+    <button id="btn-exterior" class="active">Снаружи</button>
+    <button id="btn-interior">В разрезе</button>
+  </div>
+  <div class="hint">Потяни — вращение · Сведи пальцы — масштаб</div>
+</div>
+
+<div id="loading">
+  <div class="pulse"></div>
+  <b>Загружаем модель</b>
+  <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+  <p id="loading-text">0%</p>
+</div>
+
+<div id="error">
+  <b>⚠ Не удалось загрузить модель</b>
+  <span id="error-detail">Проверь, что файлы exterior.glb и interior.glb лежат рядом с этой страницей.</span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function(){
+
+  if (typeof THREE === 'undefined') {
+    showError('Не загрузился движок Three.js (нет интернета?).');
+    return;
+  }
+  if (typeof THREE.GLTFLoader === 'undefined') {
+    showError('Не загрузился загрузчик моделей (GLTFLoader). Проверь интернет-соединение и обнови страницу.');
+    return;
+  }
+
+  var canvasWrap = document.getElementById('canvas-wrap');
+  var loadingEl = document.getElementById('loading');
+  var barFill = document.getElementById('bar-fill');
+  var loadingText = document.getElementById('loading-text');
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070b14);
+  scene.fog = new THREE.Fog(0x070b14, 8, 22);
+
+  var camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, 100);
+  camera.position.set(0, 0.3, 4.2);
+
+  var renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  canvasWrap.appendChild(renderer.domElement);
+
+  // свет — тёплый key + холодный fill, под медицинский "клинический" вид
+  var hemi = new THREE.HemisphereLight(0x9fd8ff, 0x10131c, 0.55);
+  scene.add(hemi);
+
+  var key = new THREE.DirectionalLight(0xffffff, 1.15);
+  key.position.set(3, 4, 5);
+  scene.add(key);
+
+  var fill = new THREE.DirectionalLight(0x27d6e8, 0.35);
+  fill.position.set(-4, -1, -3);
+  scene.add(fill);
+
+  var rim = new THREE.DirectionalLight(0xffffff, 0.4);
+  rim.position.set(0, 3, -5);
+  scene.add(rim);
+
+  // лёгкая опорная сетка-кольцо для ощущения "сцены", не отвлекает
+  var ringGeo = new THREE.RingGeometry(1.55, 1.58, 64);
+  var ringMat = new THREE.MeshBasicMaterial({ color:0x1d2a45, side:THREE.DoubleSide, transparent:true, opacity:0.6 });
+  var ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI/2;
+  ring.position.y = -1.1;
+  scene.add(ring);
+
+  // ----- простое orbit-управление без зависимостей -----
+  var target = new THREE.Vector3(0,0,0);
+  var spherical = { radius: 4.2, theta: 0.6, phi: 1.3 };
+  var isDragging = false, lastX=0, lastY=0;
+  var pinchStartDist = 0, pinchStartRadius = 0;
+
+  function updateCamera(){
+    spherical.phi = Math.max(0.35, Math.min(Math.PI - 0.35, spherical.phi));
+    spherical.radius = Math.max(1.6, Math.min(8, spherical.radius));
+    var x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+    var y = spherical.radius * Math.cos(spherical.phi);
+    var z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+    camera.position.set(x, y, z);
+    camera.lookAt(target);
+  }
+  updateCamera();
+
+  function onDown(x,y){ isDragging = true; lastX = x; lastY = y; }
+  function onMove(x,y){
+    if(!isDragging) return;
+    var dx = x - lastX, dy = y - lastY;
+    spherical.theta -= dx * 0.005;
+    spherical.phi -= dy * 0.005;
+    lastX = x; lastY = y;
+    updateCamera();
+  }
+  function onUp(){ isDragging = false; }
+
+  renderer.domElement.addEventListener('mousedown', function(e){ onDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function(e){ onMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', onUp);
+
+  renderer.domElement.addEventListener('wheel', function(e){
+    e.preventDefault();
+    spherical.radius += e.deltaY * 0.003;
+    updateCamera();
+  }, { passive:false });
+
+  renderer.domElement.addEventListener('touchstart', function(e){
+    if(e.touches.length === 1){
+      onDown(e.touches[0].clientX, e.touches[0].clientY);
+    } else if(e.touches.length === 2){
+      isDragging = false;
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.sqrt(dx*dx + dy*dy);
+      pinchStartRadius = spherical.radius;
+    }
+  }, { passive:true });
+
+  renderer.domElement.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    if(e.touches.length === 1){
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    } else if(e.touches.length === 2){
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      var ratio = pinchStartDist / dist;
+      spherical.radius = pinchStartRadius * ratio;
+      updateCamera();
+    }
+  }, { passive:false });
+
+  renderer.domElement.addEventListener('touchend', function(e){
+    if(e.touches.length === 0) onUp();
+  });
+
+  // автo-вращение, пока пользователь не тронул модель
+  var autoRotate = true;
+  var idleTimer = null;
+  function stopAutoRotateTemporarily(){
+    autoRotate = false;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function(){ autoRotate = true; }, 4000);
+  }
+  renderer.domElement.addEventListener('pointerdown', stopAutoRotateTemporarily);
+  renderer.domElement.addEventListener('wheel', stopAutoRotateTemporarily);
+
+  // ----- загрузка моделей -----
+  var loader = new THREE.GLTFLoader();
+  var current = null;
+  var cache = {};
+
+  function frameObject(object){
+    var box = new THREE.Box3().setFromObject(object);
+    var size = box.getSize(new THREE.Vector3());
+    var center = box.getCenter(new THREE.Vector3());
+    var maxDim = Math.max(size.x, size.y, size.z) || 1;
+    var scale = 2.0 / maxDim;
+    object.scale.setScalar(scale);
+
+    var newBox = new THREE.Box3().setFromObject(object);
+    var newCenter = newBox.getCenter(new THREE.Vector3());
+    object.position.sub(newCenter);
+  }
+
+  function showModel(key, file){
+    if(cache[key]){
+      swapModel(cache[key]);
+      return;
+    }
+    loadingEl.style.display = 'flex';
+    loadingEl.style.opacity = '1';
+    barFill.style.width = '0%';
+    loadingText.textContent = 'Загрузка...';
+
+    loader.load(
+      file,
+      function(gltf){
+        var obj = gltf.scene;
+        frameObject(obj);
+        obj.traverse(function(node){
+          if(node.isMesh){
+            node.castShadow = false;
+            node.receiveShadow = false;
+          }
+        });
+        cache[key] = obj;
+        swapModel(obj);
+        loadingEl.style.opacity = '0';
+        setTimeout(function(){ loadingEl.style.display = 'none'; }, 400);
+      },
+      function(xhr){
+        if(xhr.lengthComputable){
+          var pct = Math.round((xhr.loaded / xhr.total) * 100);
+          barFill.style.width = pct + '%';
+          loadingText.textContent = pct + '%';
+        }
+      },
+      function(err){
+        console.error(err);
+        showError('Файл ' + file + ' не найден рядом со страницей.');
+      }
+    );
+  }
+
+  function swapModel(obj){
+    if(current) scene.remove(current);
+    current = obj;
+    scene.add(current);
+  }
+
+  function showError(detail){
+    document.getElementById('error-detail').textContent = detail;
+    document.getElementById('error').classList.add('show');
+    loadingEl.style.display = 'none';
+  }
+
+  // ----- переключатель видов -----
+  var btnExt = document.getElementById('btn-exterior');
+  var btnInt = document.getElementById('btn-interior');
+
+  btnExt.addEventListener('click', function(){
+    btnExt.classList.add('active');
+    btnInt.classList.remove('active');
+    showModel('exterior', 'exterior.glb');
+  });
+  btnInt.addEventListener('click', function(){
+    btnInt.classList.add('active');
+    btnExt.classList.remove('active');
+    showModel('interior', 'interior.glb');
+  });
+
+  // ----- resize -----
+  window.addEventListener('resize', function(){
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ----- render loop -----
+  function animate(){
+    requestAnimationFrame(animate);
+    if(autoRotate && !isDragging){
+      spherical.theta += 0.0018;
+      updateCamera();
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // старт
+  showModel('exterior', 'exterior.glb');
+
+})();
+</script>
+
+</body>
+</html>
