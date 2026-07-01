@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>MedHub 3D — Сердце</title>
+<style>
+  @import url('https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/inter.css');
+
+  :root{
+    --bg:#070b14;
+    --panel:#0e1626;
+    --panel-border:#1d2a45;
+    --cyan:#27d6e8;
+    --cyan-dim:#13414a;
+    --text:#e8edf7;
+    --text-dim:#7e8aa6;
+    --red:#ff5c5c;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg);
+    font-family:'Inter', system-ui, sans-serif;
+    color:var(--text);
+  }
+
+  #canvas-wrap{ position:fixed; inset:0; }
+  canvas{ display:block; touch-action:none; }
+
+  /* верхняя панель */
+  .topbar{
+    position:fixed; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px;
+    background:linear-gradient(180deg, rgba(7,11,20,0.95) 0%, rgba(7,11,20,0) 100%);
+    z-index:10;
+    pointer-events:none;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{
+    width:30px; height:30px; border-radius:8px;
+    background:var(--cyan); color:#04161a;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:15px; letter-spacing:-0.5px;
+  }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+  .brand-text b{ font-size:15px; font-weight:700; letter-spacing:0.2px; }
+  .brand-text span{ font-size:11px; color:var(--text-dim); letter-spacing:0.3px; }
+
+  .organ-label{
+    text-align:right;
+  }
+  .organ-label .eyebrow{
+    font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--cyan); font-weight:600;
+  }
+  .organ-label h1{
+    margin:2px 0 0; font-size:20px; font-weight:700; letter-spacing:-0.2px;
+  }
+
+  /* нижняя панель управления */
+  .controls{
+    position:fixed; bottom:0; left:0; right:0;
+    padding:0 16px 22px;
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    background:linear-gradient(0deg, rgba(7,11,20,0.97) 10%, rgba(7,11,20,0) 100%);
+    z-index:22;
+  }
+
+  .view-toggle{
+    display:flex; background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:14px; padding:4px;
+    width:100%; max-width:340px;
+  }
+  .view-toggle button{
+    flex:1; border:none; background:transparent; color:var(--text-dim);
+    font-family:inherit; font-size:13.5px; font-weight:600;
+    padding:11px 8px; border-radius:10px; cursor:pointer;
+    transition:background .2s ease, color .2s ease;
+  }
+  .view-toggle button.active{
+    background:var(--cyan); color:#04161a;
+  }
+
+  .hint{
+    font-size:12px; color:var(--text-dim); letter-spacing:0.2px;
+  }
+
+  /* загрузка */
+  #loading{
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--bg); gap:18px;
+    transition:opacity .4s ease;
+  }
+  .pulse{
+    width:64px; height:64px; border-radius:50%;
+    border:3px solid var(--cyan-dim);
+    border-top-color:var(--cyan);
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loading p{ color:var(--text-dim); font-size:13px; letter-spacing:0.3px; }
+  #loading b{ color:var(--text); font-size:15px; }
+  .bar-track{
+    width:200px; height:4px; border-radius:4px; background:var(--panel-border); overflow:hidden;
+  }
+  .bar-fill{
+    height:100%; width:0%; background:var(--cyan);
+    transition:width .15s ease;
+  }
+
+  #error{
+    position:fixed; inset:0; z-index:31; display:none;
+    align-items:center; justify-content:center; background:var(--bg);
+    text-align:center; padding:24px;
+  }
+  #error.show{ display:flex; flex-direction:column; gap:8px; }
+  #error b{ color:var(--red); font-size:15px; }
+  #error span{ color:var(--text-dim); font-size:13px; max-width:280px; }
+
+  /* метки-маркеры на модели */
+  .label-dot{
+    position:fixed; width:18px; height:18px; margin:-9px 0 0 -9px;
+    border-radius:50%; background:var(--cyan); border:2px solid #04161a;
+    box-shadow:0 0 0 4px rgba(39,214,232,0.18);
+    z-index:15; cursor:pointer; touch-action:none;
+    transition:opacity .15s ease, transform .15s ease;
+  }
+  .label-dot::after{
+    content:''; position:absolute; inset:-7px; border-radius:50%;
+    border:1.5px solid var(--cyan); opacity:.55;
+    animation:dot-pulse 2.2s ease-out infinite;
+  }
+  @keyframes dot-pulse{
+    0%{ transform:scale(.6); opacity:.6; }
+    100%{ transform:scale(1.9); opacity:0; }
+  }
+  .label-dot.behind{ opacity:.28; }
+  .label-dot.active{ background:#fff; }
+
+  #info-card{
+    position:fixed; left:16px; right:16px; bottom:172px;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:18px; padding:16px 18px;
+    z-index:20; transform:translateY(140%); transition:transform .25s ease;
+    max-height:38vh; overflow-y:auto;
+  }
+  #info-card.show{ transform:translateY(0); }
+  #info-card .eyebrow{
+    font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--cyan); font-weight:700; margin-bottom:4px;
+  }
+  #info-card h3{ margin:0 0 8px; font-size:18px; font-weight:700; }
+  #info-card p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--text-dim); }
+  #info-card .close-card{
+    position:absolute; top:12px; right:12px; width:26px; height:26px;
+    border-radius:50%; background:rgba(255,255,255,0.06); border:none;
+    color:var(--text-dim); font-size:14px; cursor:pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .pulse{ animation:none; }
+  }
+
+  /* режим калибровки точек */
+  #calib-toggle{
+    position:fixed; top:64px; right:16px; z-index:25;
+    background:var(--panel); border:1px solid var(--panel-border);
+    color:var(--text-dim); font-size:11px; font-weight:700;
+    padding:8px 12px; border-radius:12px; cursor:pointer;
+  }
+  #calib-toggle.on{ background:var(--cyan); color:#04161a; border-color:var(--cyan); }
+
+  #calib-panel{
+    position:fixed; top:108px; right:16px; left:16px; max-height:38vh;
+    overflow:auto; z-index:25; display:none;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:14px; padding:10px 12px; font-size:11px; color:var(--text-dim);
+    font-family:monospace; line-height:1.6; white-space:pre-wrap;
+  }
+  #calib-panel.show{ display:block; }
+  #calib-copy{
+    position:fixed; bottom:128px; right:16px; z-index:25; display:none;
+    background:var(--cyan); color:#04161a; border:none; font-weight:700;
+    font-size:12px; padding:9px 14px; border-radius:12px;
+  }
+  #calib-copy.show{ display:block; }
+  .calib-dot{
+    position:fixed; width:10px; height:10px; margin:-5px 0 0 -5px;
+    border-radius:50%; background:#fff; z-index:14; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">M</div>
+    <div class="brand-text">
+      <b>MedHub</b>
+      <span>3D Atlas · Beta</span>
+    </div>
+  </div>
+  <div class="organ-label">
+    <div class="eyebrow">Сердечно-сосудистая система</div>
+    <h1>Сердце</h1>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="view-toggle">
+    <button id="btn-exterior" class="active">Снаружи</button>
+    <button id="btn-interior">В разрезе</button>
+  </div>
+  <div class="hint">Потяни — вращение · Сведи пальцы — масштаб</div>
+</div>
+
+<div id="loading">
+  <div class="pulse"></div>
+  <b>Загружаем модель</b>
+  <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+  <p id="loading-text">0%</p>
+</div>
+
+<div id="error">
+  <b>⚠ Не удалось загрузить модель</b>
+  <span id="error-detail">Проверь, что файлы exterior.glb и interior.glb лежат рядом с этой страницей.</span>
+</div>
+
+<div id="labels-layer"></div>
+
+<button id="calib-toggle">📍 Калибровка: выкл</button>
+<div id="calib-panel"></div>
+<button id="calib-copy">📋 Скопировать список</button>
+<div id="calib-dots-layer"></div>
+
+<div id="info-card">
+  <button class="close-card" id="close-card">✕</button>
+  <div class="eyebrow" id="card-eyebrow">Структура</div>
+  <h3 id="card-title">Название</h3>
+  <p id="card-text">Описание.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script>
+(function(){
+
+  if (typeof THREE === 'undefined') {
+    showError('Не загрузился движок Three.js (нет интернета?).');
+    return;
+  }
+  if (typeof THREE.GLTFLoader === 'undefined') {
+    showError('Не загрузился загрузчик моделей (GLTFLoader). Проверь интернет-соединение и обнови страницу.');
+    return;
+  }
+
+  var canvasWrap = document.getElementById('canvas-wrap');
+  var loadingEl = document.getElementById('loading');
+  var barFill = document.getElementById('bar-fill');
+  var loadingText = document.getElementById('loading-text');
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070b14);
+  scene.fog = new THREE.Fog(0x070b14, 8, 22);
+
+  var camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, 100);
+  camera.position.set(0, 0.3, 4.2);
+
+  var renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  canvasWrap.appendChild(renderer.domElement);
+
+  // свет — тёплый key + холодный fill, под медицинский "клинический" вид
+  var hemi = new THREE.HemisphereLight(0x9fd8ff, 0x10131c, 0.55);
+  scene.add(hemi);
+
+  var key = new THREE.DirectionalLight(0xffffff, 1.15);
+  key.position.set(3, 4, 5);
+  scene.add(key);
+
+  var fill = new THREE.DirectionalLight(0x27d6e8, 0.35);
+  fill.position.set(-4, -1, -3);
+  scene.add(fill);
+
+  var rim = new THREE.DirectionalLight(0xffffff, 0.4);
+  rim.position.set(0, 3, -5);
+  scene.add(rim);
+
+  // лёгкая опорная сетка-кольцо для ощущения "сцены", не отвлекает
+  var ringGeo = new THREE.RingGeometry(1.55, 1.58, 64);
+  var ringMat = new THREE.MeshBasicMaterial({ color:0x1d2a45, side:THREE.DoubleSide, transparent:true, opacity:0.6 });
+  var ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI/2;
+  ring.position.y = -1.1;
+  scene.add(ring);
+
+  // ----- простое orbit-управление без зависимостей -----
+  var target = new THREE.Vector3(0,0,0);
+  var spherical = { radius: 4.2, theta: 0.6, phi: 1.3 };
+  var isDragging = false, lastX=0, lastY=0;
+  var pinchStartDist = 0, pinchStartRadius = 0;
+
+  function updateCamera(){
+    spherical.phi = Math.max(0.35, Math.min(Math.PI - 0.35, spherical.phi));
+    spherical.radius = Math.max(1.6, Math.min(8, spherical.radius));
+    var x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+    var y = spherical.radius * Math.cos(spherical.phi);
+    var z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+    camera.position.set(x, y, z);
+    camera.lookAt(target);
+  }
+  updateCamera();
+
+  function onDown(x,y){ isDragging = true; lastX = x; lastY = y; }
+  function onMove(x,y){
+    if(!isDragging) return;
+    var dx = x - lastX, dy = y - lastY;
+    spherical.theta -= dx * 0.005;
+    spherical.phi -= dy * 0.005;
+    lastX = x; lastY = y;
+    updateCamera();
+  }
+  function onUp(){ isDragging = false; }
+
+  renderer.domElement.addEventListener('mousedown', function(e){ onDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function(e){ onMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', onUp);
+
+  renderer.domElement.addEventListener('wheel', function(e){
+    e.preventDefault();
+    spherical.radius += e.deltaY * 0.003;
+    updateCamera();
+  }, { passive:false });
+
+  renderer.domElement.addEventListener('touchstart', function(e){
+    if(e.touches.length === 1){
+      onDown(e.touches[0].clientX, e.touches[0].clientY);
+    } else if(e.touches.length === 2){
+      isDragging = false;
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.sqrt(dx*dx + dy*dy);
+      pinchStartRadius = spherical.radius;
+    }
+  }, { passive:true });
+
+  renderer.domElement.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    if(e.touches.length === 1){
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    } else if(e.touches.length === 2){
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      var ratio = pinchStartDist / dist;
+      spherical.radius = pinchStartRadius * ratio;
+      updateCamera();
+    }
+  }, { passive:false });
+
+  renderer.domElement.addEventListener('touchend', function(e){
+    if(e.touches.length === 0) onUp();
+  });
+
+  // автo-вращение, пока пользователь не тронул модель
+  var autoRotate = true;
+  var idleTimer = null;
+  function stopAutoRotateTemporarily(){
+    autoRotate = false;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function(){ if(!calibOn) autoRotate = true; }, 4000);
+  }
+  renderer.domElement.addEventListener('pointerdown', stopAutoRotateTemporarily);
+  renderer.domElement.addEventListener('wheel', stopAutoRotateTemporarily);
+
+  // ----- загрузка моделей -----
+  var loader = new THREE.GLTFLoader();
+  if (typeof THREE.DRACOLoader !== 'undefined') {
+    var dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    loader.setDRACOLoader(dracoLoader);
+  }
+  var current = null;
+  var cache = {};
+
+  function frameObject(object){
+    var box = new THREE.Box3().setFromObject(object);
+    var size = box.getSize(new THREE.Vector3());
+    var center = box.getCenter(new THREE.Vector3());
+    var maxDim = Math.max(size.x, size.y, size.z) || 1;
+    var scale = 2.0 / maxDim;
+    object.scale.setScalar(scale);
+
+    var newBox = new THREE.Box3().setFromObject(object);
+    var newCenter = newBox.getCenter(new THREE.Vector3());
+    object.position.sub(newCenter);
+  }
+
+  function showModel(key, file){
+    if(cache[key]){
+      swapModel(cache[key]);
+      return;
+    }
+    loadingEl.style.display = 'flex';
+    loadingEl.style.opacity = '1';
+    barFill.style.width = '0%';
+    loadingText.textContent = 'Проверка файла...';
+
+    fetch(file, { method:'HEAD' }).then(function(resp){
+      loadingText.textContent = 'HTTP ' + resp.status + ', грузим...';
+      if(!resp.ok){
+        showError('Сервер вернул статус ' + resp.status + ' для файла ' + file + ' (' + resp.statusText + ').');
+        return;
+      }
+      doLoad();
+    }).catch(function(netErr){
+      showError('Сетевая ошибка при запросе ' + file + ': ' + netErr.message);
+    });
+
+    function doLoad(){
+    loader.load(
+      file,
+      function(gltf){
+        var obj = gltf.scene;
+        frameObject(obj);
+        obj.traverse(function(node){
+          if(node.isMesh){
+            node.castShadow = false;
+            node.receiveShadow = false;
+          }
+        });
+        cache[key] = obj;
+        swapModel(obj);
+        loadingEl.style.opacity = '0';
+        setTimeout(function(){ loadingEl.style.display = 'none'; }, 400);
+      },
+      function(xhr){
+        if(xhr.lengthComputable){
+          var pct = Math.round((xhr.loaded / xhr.total) * 100);
+          barFill.style.width = pct + '%';
+          loadingText.textContent = pct + '%';
+        }
+      },
+      function(err){
+        console.error(err);
+        var detail = (err && (err.message || err.toString())) || 'Неизвестная ошибка';
+        showError('Файл ' + file + ': ' + detail);
+      }
+    );
+    }
+  }
+
+  function swapModel(obj){
+    if(current) scene.remove(current);
+    current = obj;
+    scene.add(current);
+    renderLabels(currentViewKey);
+  }
+
+  function showError(detail){
+    document.getElementById('error-detail').textContent = detail;
+    document.getElementById('error').classList.add('show');
+    loadingEl.style.display = 'none';
+  }
+
+  // ----- подписи структур — координаты по калибровочным точкам пользователя -----
+  var labelsData = {
+    exterior: [
+      // 1: (-0.14, 1.32) — левее, высоко → левая подключичная (крайняя левая ветвь дуги)
+      { title:'Левая подключичная артерия', eyebrow:'Ветвь дуги аорты', pos:[-0.14, 1.32, 0.30],
+        text:'Третья ветвь дуги аорты (считая слева направо). Снабжает кровью левую руку, часть шеи и грудной клетки. Здесь измеряют пульс и АД на левой руке.' },
+      // 2: (-0.11, 0.87) — самая нижняя левая точка → верхушка
+      { title:'Верхушка сердца', eyebrow:'Анатомический ориентир', pos:[-0.11, 0.87, 0.26],
+        text:'Образована левым желудочком, направлена вниз, влево и вперёд. Проецируется в 5-е межреберье по левой среднеключичной линии — место пальпации верхушечного толчка и аускультации митрального клапана.' },
+      // 3: (-0.04, 1.33) — центр, высоко → левая общая сонная артерия
+      { title:'Левая общая сонная артерия', eyebrow:'Ветвь дуги аорты', pos:[-0.04, 1.33, 0.33],
+        text:'Вторая ветвь дуги аорты. Поднимается вверх по шее и кровоснабжает голову и мозг слева. Делится на наружную и внутреннюю сонные артерии на уровне щитовидного хряща.' },
+      // 4: (0.13, 1.05) — правее, спереди → ушко правого предсердия
+      { title:'Ушко правого предсердия', eyebrow:'Часть правого предсердия', pos:[0.13, 1.05, 0.39],
+        text:'Конусообразный мышечный выступ правого предсердия, виден спереди. Функционально — дополнительный резервуар крови при перегрузке предсердия.' },
+      // 5: (0.01, 0.99) — центр, по передней борозде → ПМЖВ
+      { title:'Передняя межжелудочковая ветвь', eyebrow:'Ветвь левой коронарной артерии', pos:[0.01, 0.99, 0.12],
+        text:'Проходит по передней межжелудочковой борозде. Кровоснабжает переднюю стенку обоих желудочков и переднюю часть межжелудочковой перегородки. Её закупорка — обширный передний инфаркт.' },
+      // 6: (0.08, 1.19) — правее, верхняя → верхняя полая вена
+      { title:'Верхняя полая вена', eyebrow:'Крупный венозный сосуд', pos:[0.08, 1.19, 0.13],
+        text:'Образуется слиянием правой и левой плечеголовных вен. Впадает в правое предсердие. Приносит венозную кровь от головы, шеи и верхних конечностей.' },
+      // 7: (0.08, 1.11, 0.08) — правее, чуть сзади → правые лёгочные вены
+      { title:'Правые лёгочные вены', eyebrow:'Вены малого круга', pos:[0.08, 1.11, 0.08],
+        text:'Верхняя и нижняя правые лёгочные вены приносят оксигенированную кровь из правого лёгкого в левое предсердие. Единственные вены в теле, несущие артериальную (красную) кровь.' },
+      // 8: (-0.14, 1.17) — левее → левая верхняя лёгочная вена
+      { title:'Левая верхняя лёгочная вена', eyebrow:'Вена малого круга', pos:[-0.14, 1.17, 0.14],
+        text:'Приносит оксигенированную кровь из верхней доли левого лёгкого в левое предсердие. Вместе с нижней левой лёгочной веной формирует левый лёгочный венозный отток.' },
+      // 9: (-0.15, 1.08, 0.09) — далеко влево, сзади → ушко левого предсердия
+      { title:'Ушко левого предсердия', eyebrow:'Часть левого предсердия', pos:[-0.15, 1.08, 0.09],
+        text:'Небольшой мышечный карман левого предсердия. При мерцательной аритмии здесь образуются тромбы из-за низкой скорости кровотока — основной источник кардиоэмболических инсультов.' },
+      // 10: (-0.05, 1.12, 0.07) — центр-лево, сзади → левая нижняя лёгочная вена
+      { title:'Левая нижняя лёгочная вена', eyebrow:'Вена малого круга', pos:[-0.05, 1.12, 0.07],
+        text:'Приносит оксигенированную кровь из нижней доли левого лёгкого в левое предсердие. Всего в сердце впадают 4 лёгочные вены: 2 правые и 2 левые.' },
+      // 11: (0.06, 1.27) — центр-право, высоко → плечеголовной ствол
+      { title:'Плечеголовной ствол', eyebrow:'Ветвь дуги аорты', pos:[0.06, 1.27, 0.17],
+        text:'Первая и самая короткая ветвь дуги аорты. Делится на правую общую сонную и правую подключичную артерии. Кровоснабжает правую руку, правую половину головы и шеи.' },
+      // 12: (-0.16, 1.22) — влево, верхняя → левое предсердие
+      { title:'Левое предсердие', eyebrow:'Камера сердца', pos:[-0.16, 1.22, 0.15],
+        text:'Самая задняя камера сердца. Принимает кровь из 4 лёгочных вен. Сообщается с левым желудочком через митральный (двустворчатый) клапан.' },
+      // 13: (-0.09, 1.44) — чуть левее, очень высоко → лёгочный ствол
+      { title:'Лёгочный ствол', eyebrow:'Сосуд малого круга', pos:[-0.09, 1.44, 0.26],
+        text:'Выходит из правого желудочка через лёгочный клапан (3 полулунные створки). Делится на правую и левую лёгочные артерии. Единственная артерия, несущая венозную (тёмную) кровь.' },
+      // 14: (-0.04, 1.47) — самые высокие, чуть левее → дуга аорты
+      { title:'Дуга аорты', eyebrow:'Отдел аорты', pos:[-0.04, 1.47, 0.23],
+        text:'Соединяет восходящую и нисходящую аорту. Именно от дуги отходят 3 крупные артерии: плечеголовной ствол, левая общая сонная и левая подключичная. Огибает корень левого лёгкого.' },
+      // 15: (-0.01, 1.46) — самый верх, центр → восходящая аорта
+      { title:'Аорта (восходящая часть)', eyebrow:'Самый крупный сосуд', pos:[-0.01, 1.46, 0.19],
+        text:'Начинается из левого желудочка через аортальный клапан (3 полулунные створки). Сразу над клапаном — синусы Вальсальвы, откуда отходят правая и левая венечные артерии.' },
+      // 16: (-0.18, 1.09, 0.31) — далеко влево, спереди → огибающая ветвь
+      { title:'Огибающая ветвь левой коронарной артерии', eyebrow:'Коронарный сосуд', pos:[-0.18, 1.09, 0.31],
+        text:'Огибает сердце по левой венечной борозде. Кровоснабжает боковую и заднюю стенку левого желудочка и левое предсердие. По ней же проходит большая вена сердца.' },
+      // 17: (0.18, 0.90) — далеко вправо, низко → правое предсердие
+      { title:'Правое предсердие', eyebrow:'Камера сердца', pos:[0.18, 0.90, 0.31],
+        text:'Принимает венозную кровь из верхней и нижней полых вен. Отделено от правого желудочка трёхстворчатым (трикуспидальным) клапаном. В стенке правого предсердия расположен синусовый узел — водитель ритма сердца.' },
+      // 18: (0.21, 1.04) — самая правая точка → нижняя полая вена
+      { title:'Нижняя полая вена', eyebrow:'Крупный венозный сосуд', pos:[0.21, 1.04, 0.31],
+        text:'Собирает венозную кровь от нижней половины тела (органы брюшной полости, таза, нижние конечности). Впадает в правое предсердие снизу. Перед впадением — заслонка нижней полой вены (Евстахиева заслонка).' },
+      // 19: (0.02, 1.03, 0.44) — самая передняя точка → правый желудочек
+      { title:'Правый желудочек', eyebrow:'Камера сердца', pos:[0.02, 1.03, 0.44],
+        text:'Образует большую часть передней поверхности сердца — поэтому виден при осмотре спереди. Сообщается с правым предсердием через трёхстворчатый клапан, с лёгочным стволом — через лёгочный клапан. Стенка 3–5 мм.' }
+    ],
+    interior: [
+      // Самая верхняя точка — аорта выходит из ЛЖ, центр-верх
+      { title:'Аорта', eyebrow:'Сосуд', pos:[0.02, 1.22, 0.33],
+        text:'Начинается из левого желудочка. Сразу у основания — аортальный клапан (3 полулунные створки). Кровоток: ЛЖ → аортальный клапан → аорта → весь организм.' },
+      // Лёгочная артерия — левее и чуть сзади аорты
+      { title:'Лёгочная артерия', eyebrow:'Сосуд малого круга', pos:[-0.03, 1.17, -0.04],
+        text:'Выходит из правого желудочка. У основания — лёгочный клапан (3 полулунные створки). Несёт венозную кровь в лёгкие. Делится на правую и левую лёгочные артерии.' },
+      // Правое предсердие — правая сторона
+      { title:'Правое предсердие', eyebrow:'Камера сердца', pos:[0.20, 1.00, 0.20],
+        text:'Принимает кровь из верхней и нижней полых вен, а также венечного синуса. Отделено от правого желудочка трёхстворчатым клапаном. Тонкие стенки — это предсердие, не желудочек.' },
+      // Трёхстворчатый клапан — между правыми камерами
+      { title:'Трёхстворчатый клапан', eyebrow:'Клапан сердца', pos:[0.07, 1.10, 0.12],
+        text:'Между правым предсердием и правым желудочком. Три створки. Удерживается сухожильными хордами, прикреплёнными к сосочковым мышцам желудочка. Препятствует обратному забросу крови.' },
+      // Правый желудочек — правее, спереди
+      { title:'Правый желудочек', eyebrow:'Камера сердца', pos:[0.13, 1.07, 0.35],
+        text:'Тонкостенная камера (3–5 мм). Кровоток: правое предсердие → трёхстворчатый клапан → правый желудочек → лёгочный клапан → лёгочная артерия → лёгкие.' },
+      // Левое предсердие — левая сторона, чуть выше
+      { title:'Левое предсердие', eyebrow:'Камера сердца', pos:[-0.13, 1.07, 0.20],
+        text:'Принимает оксигенированную кровь из 4 лёгочных вен (по 2 с каждой стороны). Отделено от левого желудочка митральным клапаном. Расположено сзади — это самая задняя камера.' },
+      // Митральный клапан — между левыми камерами
+      { title:'Митральный (двустворчатый) клапан', eyebrow:'Клапан сердца', pos:[-0.15, 1.11, 0.06],
+        text:'Между левым предсердием и левым желудочком. Только 2 створки — отличие от трёхстворчатого. Удерживается хордами. Его недостаточность — систолический шум на верхушке сердца.' },
+      // Левый желудочек — левее, ниже
+      { title:'Левый желудочек', eyebrow:'Камера сердца', pos:[-0.12, 1.02, 0.17],
+        text:'Самая толстостенная камера (8–12 мм). Кровоток: левое предсердие → митральный клапан → левый желудочек → аортальный клапан → аорта. Формирует верхушку сердца.' },
+      // Межжелудочковая перегородка — по центру
+      { title:'Межжелудочковая перегородка', eyebrow:'Структура сердца', pos:[0.04, 1.03, 0.04],
+        text:'Разделяет правый и левый желудочки. Состоит из мышечной и перепончатой (мембранозной) части. ДМЖП — дефект межжелудочковой перегородки, частый врождённый порок сердца.' },
+      // Сухожильные хорды — нижняя часть
+      { title:'Сухожильные хорды', eyebrow:'Структура клапанного аппарата', pos:[0.02, 0.99, 0.24],
+        text:'Тонкие нити из соединительной ткани, идущие от сосочковых мышц желудочков к створкам митрального и трёхстворчатого клапанов. Удерживают створки от выворачивания в предсердие при сокращении.' }
+    ]
+  };
+
+  var currentViewKey = 'exterior';
+  var labelEls = [];
+  var labelsLayer = document.getElementById('labels-layer');
+  var infoCard = document.getElementById('info-card');
+  var tmpV = new THREE.Vector3();
+  var tmpNormal = new THREE.Vector3();
+  var tmpCamDir = new THREE.Vector3();
+
+  function renderLabels(viewKey){
+    labelsLayer.innerHTML = '';
+    labelEls = [];
+    var data = labelsData[viewKey] || [];
+    data.forEach(function(item){
+      var dot = document.createElement('div');
+      dot.className = 'label-dot';
+      dot.title = item.title;
+      dot.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        showCard(item);
+        labelEls.forEach(function(l){ l.el.classList.remove('active'); });
+        dot.classList.add('active');
+      });
+      labelsLayer.appendChild(dot);
+      labelEls.push({ el:dot, pos:new THREE.Vector3(item.pos[0], item.pos[1], item.pos[2]), data:item });
+    });
+  }
+
+  function updateLabels(){
+    if(!current || labelEls.length === 0) return;
+    labelEls.forEach(function(l){
+      tmpV.copy(l.pos).applyMatrix4(current.matrixWorld);
+      var screenPos = tmpV.clone().project(camera);
+      var x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+      var y = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+      l.el.style.left = x + 'px';
+      l.el.style.top = y + 'px';
+
+      // грубая проверка "смотрит ли точка на камеру" — прячем то, что за моделью
+      tmpNormal.copy(l.pos).normalize().transformDirection(current.matrixWorld);
+      tmpCamDir.copy(camera.position).sub(tmpV).normalize();
+      var facing = tmpNormal.dot(tmpCamDir);
+      var offscreen = screenPos.z > 1 || x < -20 || x > window.innerWidth+20 || y < -20 || y > window.innerHeight+20;
+      l.el.classList.toggle('behind', facing < -0.15);
+      l.el.style.display = offscreen ? 'none' : 'block';
+    });
+  }
+
+  function showCard(item){
+    document.getElementById('card-eyebrow').textContent = item.eyebrow;
+    document.getElementById('card-title').textContent = item.title;
+    document.getElementById('card-text').textContent = item.text;
+    infoCard.classList.add('show');
+  }
+
+  document.getElementById('close-card').addEventListener('click', function(){
+    infoCard.classList.remove('show');
+    labelEls.forEach(function(l){ l.el.classList.remove('active'); });
+  });
+
+  // ----- режим калибровки точек (тап по модели → точные координаты) -----
+  var calibOn = false;
+  var calibPoints = [];
+  var raycaster = new THREE.Raycaster();
+  var ndc = new THREE.Vector2();
+  var calibToggle = document.getElementById('calib-toggle');
+  var calibPanel = document.getElementById('calib-panel');
+  var calibCopyBtn = document.getElementById('calib-copy');
+  var calibDotsLayer = document.getElementById('calib-dots-layer');
+
+  calibToggle.addEventListener('click', function(){
+    calibOn = !calibOn;
+    calibToggle.classList.toggle('on', calibOn);
+    calibToggle.textContent = calibOn ? '📍 Калибровка: ВКЛ (тапай по сердцу)' : '📍 Калибровка: выкл';
+    calibPanel.classList.toggle('show', calibOn);
+    calibCopyBtn.classList.toggle('show', calibOn && calibPoints.length>0);
+    autoRotate = !calibOn;
+  });
+
+  function handleCalibTap(clientX, clientY){
+    if(!calibOn || !current) return;
+    ndc.x = (clientX / window.innerWidth) * 2 - 1;
+    ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    var hits = raycaster.intersectObject(current, true);
+    if(hits.length === 0) return;
+    var point = hits[0].point.clone();
+    var local = current.worldToLocal(point.clone());
+    calibPoints.push(local);
+
+    var dot = document.createElement('div');
+    dot.className = 'calib-dot';
+    calibDotsLayer.appendChild(dot);
+
+    function updateDotPos(){
+      var p = local.clone().applyMatrix4(current.matrixWorld).project(camera);
+      dot.style.left = ((p.x*0.5+0.5)*window.innerWidth) + 'px';
+      dot.style.top = ((-p.y*0.5+0.5)*window.innerHeight) + 'px';
+    }
+    calibDots.push(updateDotPos);
+    updateDotPos();
+
+    var n = calibPoints.length;
+    calibPanel.textContent = calibPoints.map(function(p,i){
+      return (i+1)+': pos:['+p.x.toFixed(2)+', '+p.y.toFixed(2)+', '+p.z.toFixed(2)+']';
+    }).join('\n');
+    calibCopyBtn.classList.add('show');
+  }
+  var calibDots = [];
+
+  renderer.domElement.addEventListener('click', function(e){
+    if(calibOn){
+      handleCalibTap(e.clientX, e.clientY);
+    } else {
+      // тап в пустоту закрывает карточку
+      infoCard.classList.remove('show');
+      labelEls.forEach(function(l){ l.el.classList.remove('active'); });
+    }
+  });
+
+  // тач-тап в пустоту тоже закрывает карточку
+  renderer.domElement.addEventListener('touchend', function(e){
+    if(!calibOn && !isDragging && e.changedTouches.length === 1){
+      // проверяем, был ли это короткий тап (не свайп)
+      infoCard.classList.remove('show');
+      labelEls.forEach(function(l){ l.el.classList.remove('active'); });
+    }
+  });
+
+  calibCopyBtn.addEventListener('click', function(){
+    var text = calibPoints.map(function(p,i){
+      return (i+1)+': pos:['+p.x.toFixed(2)+', '+p.y.toFixed(2)+', '+p.z.toFixed(2)+']';
+    }).join('\n');
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(text).then(function(){
+        calibCopyBtn.textContent = '✅ Скопировано';
+        setTimeout(function(){ calibCopyBtn.textContent = '📋 Скопировать список'; }, 1500);
+      });
+    }
+  });
+
+  // ----- переключатель видов -----
+  var btnExt = document.getElementById('btn-exterior');
+  var btnInt = document.getElementById('btn-interior');
+
+  btnExt.addEventListener('click', function(){
+    btnExt.classList.add('active');
+    btnInt.classList.remove('active');
+    currentViewKey = 'exterior';
+    infoCard.classList.remove('show');
+    renderLabels('exterior');
+    showModel('exterior', 'exterior.glb');
+  });
+  btnInt.addEventListener('click', function(){
+    btnInt.classList.add('active');
+    btnExt.classList.remove('active');
+    currentViewKey = 'interior';
+    infoCard.classList.remove('show');
+    renderLabels('interior');
+    showModel('interior', 'interior.glb');
+  });
+
+  // ----- resize -----
+  window.addEventListener('resize', function(){
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ----- render loop -----
+  function animate(){
+    requestAnimationFrame(animate);
+    if(autoRotate && !isDragging){
+      spherical.theta += 0.0018;
+      updateCamera();
+    }
+    updateLabels();
+    calibDots.forEach(function(fn){ fn(); });
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // старт
+  renderLabels('exterior');
+  showModel('exterior', 'exterior.glb');
+
+})();
+</script>
+
+</body>
+</html>
