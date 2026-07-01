@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b1024" />
+  <title>MedHub Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+  /* ============================================================
+     MEDHUB — DESIGN SYSTEM v2
+     Каждая тема: другой фон, другие карточки, другой характер
+  ============================================================ */
+  :root {
+    /* Тёмная (по умолчанию) — глубокий клинический тёмно-синий */
+    --bg:     #07101f;
+    --bg2:    #0d1d38;
+    --card:   #0f1d34;
+    --card2:  #162540;
+    --text:   #e8f2ff;
+    --muted:  #6a8aaa;
+    --line:   rgba(80,140,255,0.13);
+    --accent: #00dfc0;
+    --accent2:#3d8bff;
+    --ok:     #2ed47a;
+    --warn:   #ffb830;
+    --danger: #ff4f6d;
+    --shadow: 0 8px 40px rgba(0,0,0,0.45);
+    --r:      22px;
+    --card-border: rgba(60,130,255,0.18);
+    --hero-glow: rgba(0,223,192,0.12);
+  }
+
+  /* ── КЛИНИЧЕСКАЯ (белая) — как в реальных медицинских системах ── */
+  body[data-theme="mint"] {
+    --bg:#f4f8ff; --bg2:#e8f0ff; --card:#ffffff; --card2:#f0f5ff;
+    --text:#07153a; --muted:#5a7096; --line:rgba(30,90,200,0.12);
+    --accent:#0057ff; --accent2:#00b8d9;
+    --shadow:0 4px 24px rgba(0,60,180,0.10);
+    --card-border:rgba(0,87,255,0.12); --hero-glow:rgba(0,87,255,0.07);
+  }
+  /* ── НЕФРИТ (зелёная) — свежая и природная ── */
+  body[data-theme="medical"] {
+    --bg:#f0faf5; --bg2:#dff5eb; --card:#ffffff; --card2:#f0fff8;
+    --text:#062a1a; --muted:#4a7a5e; --line:rgba(0,140,80,0.13);
+    --accent:#00a86b; --accent2:#00d9a0;
+    --shadow:0 4px 24px rgba(0,120,70,0.10);
+    --card-border:rgba(0,168,107,0.14); --hero-glow:rgba(0,168,107,0.07);
+  }
+  /* ── ЗАКАТ (тёплая тёмная) — фокус вечером ── */
+  body[data-theme="sunset"] {
+    --bg:#110609; --bg2:#200b10; --card:#1c0c12; --card2:#251018;
+    --text:#fff5f0; --muted:#b07a70; --line:rgba(255,80,50,0.14);
+    --accent:#ff5c3a; --accent2:#ffaa30;
+    --shadow:0 8px 40px rgba(60,0,0,0.40);
+    --card-border:rgba(255,92,58,0.18); --hero-glow:rgba(255,92,58,0.10);
+  }
+  /* ── НЕОН (кибер-медицина) — максимальная энергия ── */
+  body[data-theme="neon"] {
+    --bg:#03040c; --bg2:#080d24; --card:#0b1028; --card2:#10182e;
+    --text:#e8fffc; --muted:#5a8a9a;
+    --line:rgba(0,255,210,0.15);
+    --accent:#00ffd5; --accent2:#8b5cf6;
+    --shadow:0 0 30px rgba(0,255,213,0.10),0 12px 40px rgba(0,0,0,0.55);
+    --card-border:rgba(0,255,213,0.20); --hero-glow:rgba(0,255,213,0.08);
+  }
+
+  /* ============================================================  RESET  */
+  *, *::before, *::after { box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  html { scroll-behavior:smooth }
+  body {
+    margin:0;
+    font-family: Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background .3s ease, color .25s ease;
+  }
+  /* Subtle bg texture */
+  body::before {
+    content:'';
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background: radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg2), transparent 60%);
+  }
+
+  /* ============================================================  LAYOUT  */
+  .app { position:relative; z-index:1; max-width:560px; margin:0 auto; min-height:100vh; padding:18px 16px 108px }
+  .screen { display:none }
+  .screen.active { display:block; animation:fade .22s ease }
+  @keyframes fade { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+
+  /* ============================================================  TOPBAR  */
+  .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px }
+  .brand { display:flex; align-items:center; gap:12px }
+  .logo {
+    width:52px; height:52px; border-radius:16px;
+    background:linear-gradient(135deg,var(--accent2),var(--accent));
+    display:grid; place-items:center; overflow:hidden;
+    box-shadow:0 4px 18px var(--hero-glow);
+    border:1px solid var(--card-border);
+  }
+  .logo img { width:100%; height:100%; object-fit:cover }
+  .brand h1 { font-size:28px; line-height:1; margin:0; font-weight:800; letter-spacing:-.5px }
+  .brand p { margin:4px 0 0; color:var(--muted); font-size:13px }
+  .icon-btn, .back, .search-btn {
+    width:44px; height:44px; border-radius:14px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--text); font-size:20px;
+    display:grid; place-items:center; cursor:pointer;
+  }
+  .header { display:flex; align-items:center; gap:14px; margin:8px 0 22px }
+  .header h2 { font-size:30px; line-height:1; margin:0; font-weight:800 }
+  .muted { color:var(--muted); margin:5px 0 0; font-size:14px }
+
+  /* ============================================================  HERO  */
+  .hero {
+    border:1px solid var(--card-border);
+    border-radius:var(--r);
+    background:var(--card);
+    box-shadow:var(--shadow);
+    padding:20px 20px 18px;
+    margin-bottom:18px;
+    position:relative;
+    overflow:hidden;
+  }
+  /* Subtle glow top-right */
+  .hero::before {
+    content:''; position:absolute; right:-20px; top:-20px;
+    width:140px; height:140px; border-radius:50%;
+    background:radial-gradient(circle,var(--hero-glow),transparent 70%);
+    pointer-events:none;
+  }
+  .hero-row { display:flex; align-items:flex-start; justify-content:space-between; gap:14px }
+  .hero b { font-size:22px; font-weight:800; letter-spacing:-.3px }
+  .level { font-size:13px; color:var(--muted); margin-top:8px }
+
+  /* XP BAR с анимированным пульсом */
+  .bar { height:8px; background:var(--line); border-radius:999px; overflow:hidden; margin-top:13px }
+  .bar span {
+    display:block; height:100%; width:0%;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    border-radius:inherit;
+    box-shadow:0 0 8px var(--accent);
+    transition:width .6s ease;
+  }
+  .cta-note {
+    margin-top:14px; padding:12px 14px;
+    border-radius:14px;
+    background:rgba(255,255,255,.05);
+    border:1px solid var(--line);
+    color:var(--muted); font-size:13.5px; line-height:1.4;
+  }
+
+  /* ============================================================  GRID CARDS  */
+  .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:4px }
+  .card {
+    min-height:120px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    border-radius:var(--r);
+    padding:18px 16px 16px;
+    box-shadow:var(--shadow);
+    cursor:pointer;
+    position:relative;
+    overflow:hidden;
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .card:active { transform:scale(.97) }
+  /* Цветная полоска-акцент сверху */
+  .card::before {
+    content:''; position:absolute;
+    top:0; left:14px; right:14px; height:2px;
+    border-radius:0 0 4px 4px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    opacity:.7;
+  }
+  .card h3 { margin:0; font-size:16px; font-weight:700 }
+  .card p { color:var(--muted); font-size:13px; margin:6px 0 0; line-height:1.35 }
+
+  /* ── Иконки в карточках — цветные пузыри ── */
+  .emoji {
+    font-size:26px;
+    width:46px; height:46px; border-radius:14px;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--accent2) 18%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));
+    border:1px solid var(--card-border);
+    display:grid; place-items:center;
+    margin-bottom:12px;
+  }
+
+  /* ============================================================  LIST ITEMS  */
+  .section-title { font-size:22px; font-weight:800; margin:24px 0 12px; letter-spacing:-.3px }
+  .list { display:flex; flex-direction:column; gap:10px }
+  .item {
+    display:flex; align-items:center; gap:12px;
+    padding:14px 16px;
+    border-radius:18px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    cursor:pointer;
+    transition:transform .15s ease;
+  }
+  .item:active { transform:scale(.985) }
+  .item .emoji { margin-bottom:0; width:42px; height:42px; font-size:22px; flex-shrink:0 }
+  .item b { display:block; font-size:15.5px; font-weight:700 }
+  .item small { display:block; color:var(--muted); margin-top:3px; font-size:13px }
+  .grow { flex:1 }
+  .chev { font-size:22px; color:var(--muted); opacity:.7 }
+
+  /* ============================================================  NAV  */
+  .bottom {
+    position:fixed; left:50%; bottom:10px;
+    transform:translateX(-50%);
+    width:min(560px,calc(100% - 20px));
+    display:grid; grid-template-columns:repeat(5,1fr);
+    gap:3px; padding:6px;
+    border:1px solid var(--card-border);
+    border-radius:26px;
+    background:var(--card);
+    backdrop-filter:blur(20px);
+    box-shadow:0 4px 30px rgba(0,0,0,0.3);
+    z-index:50;
+  }
+  .nav {
+    border:0; background:transparent; color:var(--muted);
+    border-radius:18px; padding:8px 2px; font-size:11.5px;
+    cursor:pointer; transition:background .18s ease, color .18s ease;
+  }
+  .nav span { display:block; font-size:22px; margin-bottom:2px }
+  .nav.active {
+    background:linear-gradient(135deg,color-mix(in srgb,var(--accent2) 22%,transparent),color-mix(in srgb,var(--accent) 16%,transparent));
+    color:var(--text);
+    border:1px solid var(--card-border);
+  }
+
+  /* ============================================================  SEARCH  */
+  .search {
+    width:100%; border:1px solid var(--card-border);
+    background:var(--card); border-radius:16px;
+    padding:14px 16px; color:var(--text);
+    outline:none; margin-bottom:14px; font-size:15px;
+    transition:border-color .2s;
+  }
+  .search:focus { border-color:var(--accent) }
+  .search::placeholder { color:var(--muted) }
+
+  /* ============================================================  PILLS  */
+  .pill-row { display:flex; gap:8px; overflow:auto; padding:0 0 12px; scrollbar-width:none }
+  .pill-row::-webkit-scrollbar { display:none }
+  .pill {
+    white-space:nowrap; border:1px solid var(--card-border);
+    background:var(--card); color:var(--muted);
+    padding:10px 16px; border-radius:999px; font-size:14px; cursor:pointer;
+    transition:all .18s ease;
+  }
+  .pill.active {
+    background:linear-gradient(135deg,var(--accent2),var(--accent));
+    color:#fff; border-color:transparent;
+    box-shadow:0 4px 14px var(--hero-glow);
+  }
+
+  /* ============================================================  EMPTY STATE  */
+  .empty {
+    padding:28px 20px; border:1px solid var(--card-border);
+    border-radius:var(--r); background:var(--card);
+    text-align:center;
+  }
+  .empty .big { font-size:44px; margin-bottom:10px }
+  .empty h3 { margin:0 0 8px; font-size:18px }
+  .empty p { color:var(--muted); margin:0; font-size:14px }
+
+  /* ============================================================  BUTTONS  */
+  .btn {
+    width:100%; border:0; border-radius:18px;
+    padding:15px 18px;
+    background:linear-gradient(135deg,var(--accent2),var(--accent));
+    color:#fff; font-weight:800; font-size:16px; margin-top:14px;
+    cursor:pointer; box-shadow:0 4px 18px var(--hero-glow);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:active { transform:scale(.98) }
+  .btn.secondary {
+    background:var(--card); border:1px solid var(--card-border);
+    color:var(--text); box-shadow:none;
+  }
+
+  /* ============================================================  PROFILE  */
+  .stats { display:grid; grid-template-columns:repeat(2,1fr); gap:10px }
+  .stat {
+    padding:16px; border-radius:20px;
+    border:1px solid var(--card-border); background:var(--card);
+    text-align:center;
+  }
+  .stat b { font-size:26px; font-weight:800; display:block }
+  .stat p { color:var(--muted); margin:4px 0 0; font-size:13px }
+  .profile-card { display:flex; gap:15px; align-items:center }
+  .avatar {
+    width:72px; height:72px; border-radius:22px;
+    background:linear-gradient(135deg,var(--accent2),var(--accent));
+    display:grid; place-items:center; font-size:30px;
+    overflow:hidden; border:2px solid var(--card-border);
+    box-shadow:0 0 20px var(--hero-glow); cursor:pointer; flex-shrink:0;
+  }
+  .avatar img { width:100%; height:100%; object-fit:cover }
+  .avatar-tools { display:flex; gap:8px; margin-top:10px }
+  .small-btn {
+    border:1px solid var(--card-border); background:var(--card);
+    color:var(--text); border-radius:12px; padding:9px 12px;
+    font-size:13px; font-weight:700; cursor:pointer;
+  }
+
+  /* ============================================================  DRUG CARDS  */
+  .drug-grid { display:grid; grid-template-columns:1fr; gap:14px }
+  @media(min-width:500px){ .drug-grid { grid-template-columns:repeat(2,1fr) } }
+  .drug-card {
+    position:relative;
+    border:1px solid color-mix(in srgb,var(--drug,#2b8cff) 35%,var(--card-border));
+    border-radius:26px;
+    background:radial-gradient(circle at 78% 50%,color-mix(in srgb,var(--drug,#2b8cff) 12%,var(--card)),var(--card) 55%);
+    padding:20px; overflow:hidden; cursor:pointer;
+    box-shadow:0 8px 32px rgba(0,0,0,0.22);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .drug-card:active { transform:scale(.985) }
+  .drug-card h3 { font-size:28px; line-height:1.06; margin:0; letter-spacing:-.4px; position:relative; z-index:2 }
+  .drug-card .latin { color:var(--muted); margin-top:4px; font-size:17px; position:relative; z-index:2 }
+  .badges { display:flex; gap:8px; flex-wrap:wrap; position:relative; z-index:2; margin-top:10px }
+  .tag {
+    display:inline-flex; border:1px solid color-mix(in srgb,var(--drug,#2b8cff) 50%,transparent);
+    border-radius:10px; color:var(--accent);
+    padding:7px 10px; font-size:12.5px; line-height:1.2;
+    background:color-mix(in srgb,var(--drug,#2b8cff) 10%,transparent);
+  }
+  .rx {
+    display:inline-flex; border:1px solid rgba(46,212,122,.5);
+    border-radius:10px; color:#2ed47a;
+    padding:7px 11px; font-weight:900; font-size:12.5px;
+    background:rgba(46,212,122,.08);
+  }
+  .drug-pack-img {
+    display:block; width:75%; height:140px; object-fit:contain;
+    margin:10px -4px 6px auto; position:relative; z-index:2;
+    filter:drop-shadow(0 16px 16px rgba(0,0,0,.45)) drop-shadow(0 0 12px color-mix(in srgb,var(--drug,#2b8cff) 30%,transparent));
+  }
+  .drug-card p { position:relative; margin:0; color:var(--muted); font-size:15px; z-index:2 }
+  .drug-detail-img {
+    width:100%; border-radius:20px;
+    border:1px solid var(--card-border);
+    box-shadow:var(--shadow); display:block;
+    background:var(--card2);
+  }
+  .drug-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+
+  /* ============================================================  THEME CAROUSEL  */
+  .theme-carousel {
+    display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory;
+    padding:4px 4px 12px; margin:0 -4px; scrollbar-width:none;
+  }
+  .theme-carousel::-webkit-scrollbar { display:none }
+  .theme-slide {
+    min-width:88%; scroll-snap-align:center;
+    border:1px solid var(--card-border); border-radius:26px;
+    background:var(--card); padding:16px;
+    box-shadow:var(--shadow);
+  }
+  .theme-preview {
+    height:190px; border-radius:20px; overflow:hidden;
+    padding:14px; border:1px solid rgba(255,255,255,.08);
+    position:relative;
+  }
+  /* Theme preview backgrounds */
+  .preview-dark    { background:linear-gradient(145deg,#0d1d38,#07101f) }
+  .preview-mint    { background:linear-gradient(145deg,#f4f8ff,#e8f0ff); color:#07153a }
+  .preview-medical { background:linear-gradient(145deg,#f0faf5,#dff5eb); color:#062a1a }
+  .preview-sunset  { background:linear-gradient(145deg,#1c0c12,#110609) }
+  .preview-neon    { background:radial-gradient(ellipse at 20% 0,#1a0a40,#03040c 60%); color:#e8fffc }
+
+  .fake-phone-card {
+    height:54px; border-radius:14px;
+    background:rgba(255,255,255,.16); margin-bottom:10px;
+    position:relative; overflow:hidden;
+  }
+  .fake-phone-card::before {
+    content:''; position:absolute;
+    top:0; left:14px; right:14px; height:2px;
+    border-radius:0 0 4px 4px;
+    background:linear-gradient(90deg,rgba(255,255,255,.3),rgba(255,255,255,.6));
+  }
+  .fake-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px }
+  .fake-tile { height:46px; border-radius:12px; background:rgba(255,255,255,.14) }
+
+  .theme-meta { display:flex; align-items:end; justify-content:space-between; margin-top:14px; gap:10px }
+  .theme-meta h3 { font-size:22px; font-weight:800; margin:0 }
+  .dots { text-align:center; color:var(--muted); font-size:20px; margin:4px 0 12px }
+  .dot { opacity:.3; transition:opacity .2s }
+  .dot.active { opacity:1; color:var(--accent) }
+
+  /* ============================================================  LOCKED / MISC  */
+  .locked-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px }
+  .locked {
+    padding:14px; border-radius:18px;
+    background:rgba(255,255,255,.03);
+    border:1px dashed var(--card-border);
+    filter:saturate(.2); opacity:.6;
+  }
+  .mini-row { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px }
+  .task { display:flex; gap:10px; align-items:center; margin:10px 0; color:var(--muted) }
+  .hidden { display:none !important }
+  .locked .bicon { font-size:28px }
+  body[data-theme="neon"] .card,
+  body[data-theme="neon"] .hero,
+  body[data-theme="neon"] .drug-card,
+  body[data-theme="neon"] .item {
+    box-shadow:0 0 20px rgba(0,255,213,.07), 0 8px 30px rgba(0,0,0,.45);
+  }
+  /* ============================================================  PATCHES & COAT  */
+  .hex-patch {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .18s ease, filter .18s ease;
+  }
+  .hex-patch:active { transform: scale(.93) }
+
+  .hex-shape {
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    position: relative; overflow: hidden;
+    transition: filter .2s ease;
+  }
+
+  /* Редкость — цвета и эффекты */
+  .rarity-common  .hex-shape { background: linear-gradient(145deg, #2a2f3a, #3a4050) }
+  .rarity-rare    .hex-shape { background: linear-gradient(145deg, #1a3a6b, #2563eb) }
+  .rarity-epic    .hex-shape { background: linear-gradient(145deg, #4a1d7a, #7c3aed) }
+  .rarity-legendary .hex-shape { background: linear-gradient(145deg, #7a4a00, #d97706); box-shadow: 0 0 20px rgba(217,119,6,.4) }
+  .rarity-mythic  .hex-shape { background: linear-gradient(145deg, #7a0a0a, #dc2626); box-shadow: 0 0 24px rgba(220,38,38,.5) }
+
+  /* Контур шестиугольника */
+  .hex-shape::before {
+    content: '';
+    position: absolute; inset: 3px;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    background: rgba(255,255,255,.07);
+    pointer-events: none;
+  }
+
+  .hex-icon { font-size: 26px; line-height: 1; position: relative; z-index: 1 }
+  .hex-name {
+    font-size: 8px; font-weight: 900; letter-spacing: .5px;
+    text-transform: uppercase; color: rgba(255,255,255,.9);
+    text-align: center; line-height: 1.1; margin-top: 3px;
+    position: relative; z-index: 1; padding: 0 4px;
+  }
+
+  /* Заблокированная нашивка */
+  .hex-patch.locked .hex-shape { filter: saturate(0) brightness(.4) }
+  .hex-patch.locked .hex-icon { filter: grayscale(1) opacity(.3) }
+  .hex-patch.locked::after {
+    content: '🔒';
+    position: absolute; top: 22%; left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px; z-index: 5;
+  }
+
+  /* Сетка нашивок */
+  .patch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px 8px;
+    padding: 4px 0 20px;
+    justify-items: center;
+  }
+
+  /* ── ХАЛАТ ── */
+  .coat-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 340px;
+    margin: 0 auto;
+  }
+  .coat-svg { width: 100%; height: auto; display: block }
+
+  /* CSS-переменные для халата по теме */
+  .coat-svg { --coat-fill: #f0f4ff; --coat-lapel: #e2e8f0; --coat-stroke: #94a3b8; --coat-pocket: #94a3b8 }
+  body[data-theme="sunset"] .coat-svg,
+  body[data-theme="neon"] .coat-svg,
+  body[data-theme="dark"] .coat-svg {
+    --coat-fill: #e8eeff; --coat-lapel: #d5dcf0; --coat-stroke: #8896b0; --coat-pocket: #7080a0
+  }
+
+  /* Слоты для нашивок поверх SVG */
+  .coat-slots {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .coat-slot {
+    position: absolute;
+    pointer-events: all;
+    cursor: pointer;
+    transition: transform .18s ease;
+  }
+  .coat-slot:active { transform: scale(.93) }
+
+  /* Пустой слот */
+  .slot-empty {
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    background: rgba(255,255,255,.12);
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s ease;
+  }
+  .slot-empty::after { content: '+'; font-size: 18px; color: rgba(255,255,255,.35); font-weight: 300 }
+  .coat-slot:hover .slot-empty { background: rgba(255,255,255,.2) }
+
+  /* Панель выбора нашивки */
+  .patch-picker {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+    display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  .patch-picker.show { opacity: 1; pointer-events: all }
+  .picker-sheet {
+    width: 100%; max-width: 560px; margin: 0 auto;
+    background: var(--card2); border-radius: 28px 28px 0 0;
+    padding: 20px 16px 36px;
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.32,.72,0,1);
+    max-height: 70vh; overflow-y: auto;
+  }
+  .patch-picker.show .picker-sheet { transform: translateY(0) }
+  .picker-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 18px }
+  .picker-title { font-size: 18px; font-weight: 800; margin-bottom: 16px }
+  .picker-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px 6px; justify-items: center }
+
+  /* Рамка редкости (маленькая) */
+  .rarity-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 6px; flex-shrink: 0;
+  }
+  .rarity-dot.common    { background: #6b7280 }
+  .rarity-dot.rare      { background: #3b82f6 }
+  .rarity-dot.epic      { background: #8b5cf6 }
+  .rarity-dot.legendary { background: #f59e0b }
+  .rarity-dot.mythic    { background: #ef4444 }
+
+  /* Карьерный путь */
+  .career-path { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 8px 0 16px; scrollbar-width: none }
+  .career-path::-webkit-scrollbar { display: none }
+  .career-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; min-width: 60px }
+  .career-step .step-icon {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--card); border: 2px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .career-step.active .step-icon {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--hero-glow);
+  }
+  .career-step.done .step-icon { border-color: var(--ok); background: rgba(46,212,122,.1) }
+  .career-step small { font-size: 9px; color: var(--muted); text-align: center; line-height: 1.2; max-width: 56px }
+  .career-connector { width: 20px; height: 2px; background: var(--line); flex-shrink: 0 }
+  .career-connector.done { background: var(--ok) }
+</style>
+</head>
+<body data-theme="dark">
+  <main class="app">
+    <section id="home" class="screen active">
+      <div class="top"><div class="brand"><div class="logo"><img src="assets/logo-dark.png" alt="MedHub"></div><div><h1>MedHub</h1><p>Учись. Практикуйся. Спасай жизни.</p></div></div><button class="icon-btn" onclick="openScreen('settings')">⚙️</button></div>
+      <div class="hero"><div class="hero-row"><div><b id="hello">Привет, студент</b><div class="level" id="homeLevel">Новичок · 0 / 100 XP</div></div><div style="font-size:32px;opacity:.55">🔒</div></div><div class="bar"><span id="xpBar"></span></div><div class="cta-note">🎯 Начни обучение: открой справочник или добавь первые тесты.</div></div>
+      <div class="grid">
+        <div class="card" onclick="openScreen('courses')"><div class="emoji">🎓</div><h3>Курсы</h3><p>1–4 курс</p></div>
+        <div class="card" onclick="openScreen('reference')"><div class="emoji">📚</div><h3>Справочник</h3><p>Фармакология и разделы</p></div>
+        <div class="card" onclick="openScreen('tests')"><div class="emoji">🧠</div><h3>Тесты</h3><p>Пока не добавлены</p></div>
+        <div class="card" onclick="openScreen('exams')"><div class="emoji">📝</div><h3>Экзамены</h3><p>Будет позже</p></div>
+        <div class="card" onclick="openScreen('favorite')"><div class="emoji">⭐</div><h3>Избранное</h3><p>Сохранённые материалы</p></div>
+        <div class="card" onclick="openScreen('progress')"><div class="emoji">👤</div><h3>Профиль</h3><p>0% пройдено</p></div>
+      </div>
+      <h2 class="section-title">Быстрый старт</h2>
+      <div class="item" onclick="openPharma()"><span class="emoji">💊</span><div class="grow"><b>Фармакология</b><small>Каталог препаратов и твои карточки</small></div><span class="chev">›</span></div>
+    </section>
+
+    <section id="reference" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Справочник</h2><p class="muted">Медицинские разделы</p></div></div><input class="search" id="search" placeholder="Поиск по разделу" oninput="filterItems(this.value)"><div class="list" id="refList"></div></section>
+
+    <section id="pharma" class="screen"><div class="header"><button class="back" onclick="openScreen('reference')">‹</button><div class="grow"><h2>Справочник</h2><p class="muted">Фармакология</p></div><button class="search-btn" onclick="focusDrugSearch()">⌕</button></div><input class="search" id="drugSearch" placeholder="Поиск препарата" oninput="renderDrugs(this.value)"><div class="pill-row" id="drugFilters"></div><div class="drug-grid" id="drugGrid"></div></section>
+
+    <section id="anatomy" class="screen"><div class="header"><button class="back" onclick="openScreen('reference')">‹</button><div><h2>Анатомия</h2><p class="muted">Системы органов</p></div></div>
+      <div class="list">
+        <div class="item" onclick="openScreen('heart3d')"><span class="emoji">🫀</span><div class="grow"><b>Сердце</b><small>3D Атлас — снаружи и в разрезе</small></div><span class="chev">›</span></div>
+        <div class="item" onclick="emptySection()"><span class="emoji">🫁</span><div class="grow"><b>Лёгкие</b><small>Скоро</small></div><span class="chev">›</span></div>
+        <div class="item" onclick="emptySection()"><span class="emoji">🧠</span><div class="grow"><b>Головной мозг</b><small>Скоро</small></div><span class="chev">›</span></div>
+      </div>
+    </section>
+
+    <section id="heart3d" class="screen"><div class="header"><button class="back" onclick="openScreen('anatomy')">‹</button><div><h2>Сердце</h2><p class="muted">3D Атлас</p></div></div>
+      <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:#070b14;height:62vh">
+        <iframe src="atlas/heart/index.html" style="width:100%;height:100%;border:0;display:block" allow="accelerometer; gyroscope"></iframe>
+      </div>
+    </section>
+
+
+    <section id="drugDetail" class="screen"><div class="header"><button class="back" onclick="openScreen('pharma')">‹</button><div><h2 id="drugTitle">Препарат</h2><p class="muted" id="drugSubtitle">Карточка препарата</p></div></div><img id="drugImage" class="drug-detail-img" alt="Карточка препарата"><div class="drug-actions"><button class="btn secondary" onclick="saveCurrentDrug()">⭐ В избранное</button><button class="btn" onclick="openImageFull()">Открыть крупно</button></div></section>
+
+    <section id="tests" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Тесты</h2><p class="muted">Проверка знаний</p></div></div><div class="empty"><div class="big">🧠</div><h3>Тестов пока нет</h3><p class="muted">Ты ещё не добавлял вопросы. Когда появится база тестов, здесь будут режимы, темы и результаты.</p><button class="btn secondary" onclick="openScreen('reference')">Открыть справочник</button></div></section>
+
+    <section id="courses" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Курсы</h2><p class="muted">Выбери год обучения</p></div></div><div class="list"><div class="item"><span class="emoji">1️⃣</span><div class="grow"><b>1 курс</b><small>Материалы пока не добавлены</small></div></div><div class="item"><span class="emoji">2️⃣</span><div class="grow"><b>2 курс</b><small>Материалы пока не добавлены</small></div></div><div class="item"><span class="emoji">3️⃣</span><div class="grow"><b>3 курс</b><small>Материалы пока не добавлены</small></div></div><div class="item"><span class="emoji">4️⃣</span><div class="grow"><b>4 курс</b><small>Материалы пока не добавлены</small></div></div></div></section>
+
+    <section id="exams" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Экзамены</h2><p class="muted">Билеты и ответы</p></div></div><div class="empty"><div class="big">📝</div><h3>Экзамены ещё не добавлены</h3><p class="muted">Здесь появятся билеты, таймер и режим подготовки.</p></div></section>
+
+    <section id="favorite" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Избранное</h2><p class="muted">Сохранённые материалы</p></div></div><div class="list" id="favList"></div></section>
+
+    <section id="progress" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Профиль</h2><p class="muted">Статистика обучения</p></div></div>
+      <div class="hero profile-card"><label class="avatar" id="avatar" for="avatarInput">👤</label><input id="avatarInput" type="file" accept="image/*" hidden onchange="setAvatarImage(event)"><div class="grow"><b id="profileName">Студент</b><div class="level" id="profileLevel">Абитуриент · 0 / 100 XP</div><div class="bar"><span style="width:0%"></span></div><div class="avatar-tools"><button class="small-btn" onclick="avatarInput.click()">Добавить фото</button><button class="small-btn" onclick="clearAvatar()">Сброс</button></div></div></div>
+      <div class="stats"><div class="stat"><b id="statPatches">0</b><p>Нашивок</p></div><div class="stat"><b>0%</b><p>Верных</p></div><div class="stat"><b>0</b><p>Дней в серии</p></div><div class="stat"><b id="statLevel">1</b><p>Уровень</p></div></div>
+      <h2 class="section-title">Достижения</h2>
+      <div class="list">
+        <div class="item" onclick="openCoat()"><span class="emoji">🥼</span><div class="grow"><b>Мой халат</b><small>Надень нашивки специалиста</small></div><span class="chev">›</span></div>
+        <div class="item" onclick="openPatches()"><span class="emoji">🎖️</span><div class="grow"><b>Коллекция нашивок</b><small id="patchesStatus">Открыто 0 нашивок</small></div><span class="chev">›</span></div>
+      </div>
+      <h2 class="section-title">Карьерный путь</h2>
+      <div class="career-path" id="careerPath"></div>
+    </section>
+
+    <section id="coat" class="screen">
+      <div class="header">
+        <button class="back" onclick="openScreen('progress')">‹</button>
+        <div><h2>Мой халат</h2><p class="muted">Нашивки специалиста</p></div>
+      </div>
+      <div class="coat-wrap" id="coatWrap">
+        <svg class="coat-svg" viewBox="0 0 300 390" xmlns="http://www.w3.org/2000/svg">
+          <path d="M78,38 C78,38 52,58 32,90 L12,175 L12,378 L288,378 L288,175 L268,90 C248,58 222,38 222,38 L188,58 C178,76 122,76 112,58 Z" fill="var(--coat-fill)" stroke="var(--coat-stroke)" stroke-width="2"/>
+          <path d="M78,38 L112,58 L128,158 L72,138 L32,90 Z" fill="var(--coat-lapel)" stroke="var(--coat-stroke)" stroke-width="1.5"/>
+          <path d="M222,38 L188,58 L172,158 L228,138 L268,90 Z" fill="var(--coat-lapel)" stroke="var(--coat-stroke)" stroke-width="1.5"/>
+          <rect x="52" y="168" width="70" height="50" rx="7" stroke="var(--coat-pocket)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity=".6"/>
+          <rect x="178" y="168" width="70" height="50" rx="7" stroke="var(--coat-pocket)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity=".6"/>
+          <rect x="38" y="268" width="88" height="70" rx="9" stroke="var(--coat-pocket)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity=".5"/>
+          <rect x="174" y="268" width="88" height="70" rx="9" stroke="var(--coat-pocket)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity=".5"/>
+          <circle cx="150" cy="210" r="4.5" fill="var(--coat-stroke)" opacity=".3"/>
+          <circle cx="150" cy="240" r="4.5" fill="var(--coat-stroke)" opacity=".3"/>
+          <circle cx="150" cy="270" r="4.5" fill="var(--coat-stroke)" opacity=".3"/>
+          <line x1="150" y1="78" x2="150" y2="378" stroke="var(--coat-stroke)" stroke-width="1" opacity=".2"/>
+        </svg>
+        <div class="coat-slots" id="coatSlots"></div>
+      </div>
+      <button class="btn secondary" style="margin-top:16px" onclick="resetCoat()">🔄 Сбросить халат</button>
+    </section>
+
+    <section id="patches" class="screen">
+      <div class="header">
+        <button class="back" onclick="openScreen('progress')">‹</button>
+        <div><h2>Нашивки</h2><p class="muted" id="patchesCount">0 / 0 собрано</p></div>
+      </div>
+      <div class="pill-row" id="patchFilter"></div>
+      <div class="patch-grid" id="patchGrid"></div>
+    </section>
+
+    <div class="patch-picker" id="patchPicker" onclick="closePicker(event)">
+      <div class="picker-sheet">
+        <div class="picker-handle"></div>
+        <div class="picker-title">Выбери нашивку для слота</div>
+        <div class="picker-grid" id="pickerGrid"></div>
+        <button class="btn secondary" style="margin-top:12px" onclick="clearSlot()">✕ Убрать нашивку</button>
+      </div>
+    </div>
+
+    <section id="settings" class="screen"><div class="header"><button class="back" onclick="openScreen('home')">‹</button><div><h2>Темы</h2><p class="muted">Горизонтальная карусель оформления</p></div></div><div class="theme-carousel" id="themeCarousel"></div><div class="dots" id="themeDots"></div><button class="btn" onclick="applyVisibleTheme()" id="themeBtn">Использовать тему</button></section>
+  </main>
+  <nav class="bottom"><button class="nav active" onclick="openScreen('home')"><span>🏠</span>Главная</button><button class="nav" onclick="openScreen('reference')"><span>📚</span>Справ.</button><button class="nav" onclick="openScreen('tests')"><span>🧠</span>Тесты</button><button class="nav" onclick="openScreen('favorite')"><span>⭐</span>Избр.</button><button class="nav" onclick="openScreen('progress')"><span>👤</span>Профиль</button></nav>
+<script>
+const tg=window.Telegram?.WebApp; tg?.ready(); tg?.expand();
+const user=tg?.initDataUnsafe?.user;
+if(user){ hello.textContent=`Привет, ${user.first_name}`; profileName.textContent=user.first_name; avatar.textContent=(user.first_name||'С')[0]; }
+const savedAvatar=localStorage.medhubAvatar; if(savedAvatar){ avatar.innerHTML=`<img src="${savedAvatar}" alt="Фото профиля">`; }
+function setAvatarImage(e){const file=e.target.files?.[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{localStorage.medhubAvatar=reader.result; avatar.innerHTML=`<img src="${reader.result}" alt="Фото профиля">`;}; reader.readAsDataURL(file)}
+function clearAvatar(){localStorage.removeItem('medhubAvatar'); avatar.textContent=user?.first_name?.[0]||'👤';}
+const sections=[['💊','Фармакология','Каталог препаратов и карточки'],['❤️','Анатомия','3D Атлас и материалы'],['🧬','Физиология','Материалы пока не добавлены'],['🦠','Инфекции','Материалы пока не добавлены'],['💉','Манипуляции','Материалы пока не добавлены'],['🚑','Неотложка','Материалы пока не добавлены'],['🧪','Анализы','Материалы пока не добавлены'],['🧠','Карточки','Быстрое повторение — позже']];
+const drugs=[
+ {id:'amiodaron',name:'Амиодарон',latin:'Amiodarone hydrochloride',group:'Антиаритмическое средство III класса',form:'30 таблеток по 200 мг · раствор 50 мг/мл',cat:'Антиаритмические',img:'assets/amiodaron-card.png',pack:'assets/amiodaron-pack.png',color:'#7e3fb2'},
+ {id:'atropin',name:'Атропин',latin:'Atropine sulfate',group:'М-холиноблокатор',form:'Раствор для инъекций 1 мг/мл · 10 ампул',cat:'М-холиноблокаторы',img:'assets/atropin-card.png',pack:'assets/atropin-pack.png',color:'#2788ff'},
+ {id:'adrenalin',name:'Адреналин',latin:'Epinephrine',group:'Симпатомиметик α- и β-адреномиметик',form:'Раствор для инъекций 1 мг/мл · 10 ампул',cat:'Симпатомиметики',img:'assets/adrenalin-card.png',pack:'assets/adrenalin-pack.png',color:'#d12438'},
+ {id:'ampicillin',name:'Ампициллин',latin:'Ampicillin',group:'Пенициллиновый антибиотик широкого спектра',form:'Порошок для раствора для инъекций 1,0 г · 10 флаконов',cat:'Антибиотики',img:'assets/ampicillin-card.png',pack:'assets/ampicillin-pack.png',color:'#2877c9'},
+ {id:'amoxicillin',name:'Амоксициллин',latin:'Amoxicillin',group:'Полусинтетический пенициллиновый антибиотик',form:'Порошок для раствора для инъекций 1,0 г · 10 флаконов',cat:'Антибиотики',img:'assets/amoxicillin-card.png',pack:'assets/amoxicillin-pack.png',color:'#c02a74'}
+];
+let currentDrug=null, drugFilter='Все препараты', visibleTheme=localStorage.theme||'dark';
+const themes=[['dark','🌙','Тёмная','Глубокий клинический стиль','preview-dark'],['mint','🩺','Клиническая','Чистый бело-синий — как в больнице','preview-mint'],['medical','🌿','Нефрит','Свежий зелёный, природный','preview-medical'],['sunset','🌅','Закат','Тёплая тёмная, для вечера','preview-sunset'],['neon','⚡','Неон','Кибер-медицинский, максимальная энергия','preview-neon']];
+function openScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.remove('active')); if(id==='home')document.querySelectorAll('.nav')[0].classList.add('active'); if(id==='reference'||id==='pharma'||id==='drugDetail'||id==='anatomy'||id==='heart3d')document.querySelectorAll('.nav')[1].classList.add('active'); if(id==='tests')document.querySelectorAll('.nav')[2].classList.add('active'); if(id==='favorite'){document.querySelectorAll('.nav')[3].classList.add('active');renderFav()} if(id==='progress')document.querySelectorAll('.nav')[4].classList.add('active'); window.scrollTo(0,0)}
+function renderRef(list=sections){refList.innerHTML=list.map(x=>`<div class="item" onclick="${x[1]==='Фармакология'?'openPharma()':x[1]==='Анатомия'?"openScreen('anatomy')":'emptySection()'}"><span class="emoji">${x[0]}</span><div class="grow"><b>${x[1]}</b><small>${x[2]}</small></div><span class="chev">›</span></div>`).join('')}
+function filterItems(v){renderRef(sections.filter(x=>x.join(' ').toLowerCase().includes(v.toLowerCase())))}
+function emptySection(){tg?.HapticFeedback?.notificationOccurred('warning'); alert('Раздел пока не заполнен. Сначала добавляем фармакологию.');}
+function openPharma(){openScreen('pharma'); renderDrugFilters(); renderDrugs();}
+function renderDrugFilters(){const cats=['Все препараты',...new Set(drugs.map(d=>d.cat))]; drugFilters.innerHTML=cats.map(c=>`<button class="pill ${c===drugFilter?'active':''}" onclick="drugFilter='${c}';renderDrugFilters();renderDrugs(drugSearch.value)">${c}</button>`).join('')}
+function renderDrugs(q=''){let list=drugs.filter(d=>(drugFilter==='Все препараты'||d.cat===drugFilter) && (d.name+d.latin+d.group).toLowerCase().includes(q.toLowerCase()));drugGrid.innerHTML=list.length?list.map(d=>`<div class="drug-card" style="--drug:${d.color||'#2b8cff'}" onclick="openDrug('${d.id}')"><h3>${d.name}</h3><div class="latin">(${d.latin})</div><div class="badges"><span class="tag">${d.group}</span><span class="rx">Rx</span></div><img class="drug-pack-img" src="${d.pack}" alt="${d.name}"><p>${d.form}</p></div>`).join(''):`<div class="empty"><div class="big">🔎</div><h3>Ничего не найдено</h3><p class="muted">Попробуй изменить поиск или фильтр.</p></div>`}
+function focusDrugSearch(){drugSearch.focus()}
+function openDrug(id){currentDrug=drugs.find(d=>d.id===id);drugTitle.textContent=currentDrug.name;drugSubtitle.textContent=currentDrug.group;drugImage.src=currentDrug.img;openScreen('drugDetail')}
+function openImageFull(){if(!currentDrug)return; window.open(currentDrug.img,'_blank')}
+function saveCurrentDrug(){if(!currentDrug)return;let arr=JSON.parse(localStorage.favDrugs||'[]');if(!arr.includes(currentDrug.id))arr.push(currentDrug.id);localStorage.favDrugs=JSON.stringify(arr);tg?.HapticFeedback?.notificationOccurred('success');alert('Добавлено в избранное')}
+function renderFav(){let ids=JSON.parse(localStorage.favDrugs||'[]');let list=ids.map(id=>drugs.find(d=>d.id===id)).filter(Boolean);favList.innerHTML=list.length?list.map(d=>`<div class="item" onclick="openDrug('${d.id}')"><span class="emoji">⭐</span><div class="grow"><b>${d.name}</b><small>${d.group}</small></div><span class="chev">›</span></div>`).join(''):'<div class="empty"><div class="big">⭐</div><h3>Пока пусто</h3><p class="muted">Добавь препарат из фармакологии.</p></div>'}
+function setTheme(t){document.body.dataset.theme=t;localStorage.theme=t;visibleTheme=t;document.querySelector('meta[name="theme-color"]').setAttribute('content',t==='medical'?'#f5f9ff':t==='mint'?'#eafff5':t==='sunset'?'#2a0b18':t==='neon'?'#030715':'#230516');updateDots();tg?.HapticFeedback?.impactOccurred('light')}
+function renderThemes(){themeCarousel.innerHTML=themes.map(t=>`<div class="theme-slide" data-theme-id="${t[0]}"><div class="theme-preview ${t[4]}"><div class="fake-phone-card"></div><div class="fake-grid"><div class="fake-tile"></div><div class="fake-tile"></div><div class="fake-tile"></div><div class="fake-tile"></div></div></div><div class="theme-meta"><div><h3>${t[1]} ${t[2]}</h3><p class="muted">${t[3]}</p></div><b>${localStorage.theme===t[0]?'✓':''}</b></div></div>`).join('');themeCarousel.addEventListener('scroll',()=>{clearTimeout(window.themeScrollTimer);window.themeScrollTimer=setTimeout(onThemeScroll,90)});updateDots()}
+function onThemeScroll(){const slides=[...document.querySelectorAll('.theme-slide')];let center=themeCarousel.scrollLeft+themeCarousel.clientWidth/2;let best=slides[0],dist=1e9;slides.forEach(s=>{let c=s.offsetLeft+s.clientWidth/2;let d=Math.abs(c-center);if(d<dist){dist=d;best=s}});visibleTheme=best.dataset.themeId;document.body.dataset.theme=visibleTheme;updateDots(false)}
+function updateDots(){themeDots.innerHTML=themes.map(t=>`<span class="dot ${t[0]===visibleTheme?'active':''}">●</span>`).join(' ');themeBtn.textContent=localStorage.theme===visibleTheme?'✓ Используется':'Использовать тему'}
+function applyVisibleTheme(){setTheme(visibleTheme);renderThemes()}
+setTheme(localStorage.theme||'dark');renderRef();renderThemes();
+
+// ============================================================
+// НАШИВКИ И ХАЛАТ
+// ============================================================
+
+const PATCHES = [
+  // Специальности
+  {id:'cardiolog',    name:'Кардиолог',    icon:'🫀', cat:'Специальности', rarity:'rare',      color:'#c0392b'},
+  {id:'pulmunolog',   name:'Пульмонолог',  icon:'🫁', cat:'Специальности', rarity:'rare',      color:'#2980b9'},
+  {id:'nevrolog',     name:'Невролог',     icon:'🧠', cat:'Специальности', rarity:'epic',      color:'#8e44ad'},
+  {id:'travmatolog',  name:'Травматолог',  icon:'🦴', cat:'Специальности', rarity:'common',    color:'#7f8c8d'},
+  {id:'hirurg',       name:'Хирург',       icon:'✂️',  cat:'Специальности', rarity:'legendary', color:'#16a085'},
+  {id:'reanimatolog', name:'Реаниматолог', icon:'⚡',  cat:'Специальности', rarity:'legendary', color:'#e67e22'},
+  {id:'infektsionist',name:'Инфекционист', icon:'🦠', cat:'Специальности', rarity:'rare',      color:'#27ae60'},
+  {id:'anesteziolog', name:'Анестезиолог', icon:'💉', cat:'Специальности', rarity:'epic',      color:'#2c3e50'},
+  {id:'pediatr',      name:'Педиатр',      icon:'👶', cat:'Специальности', rarity:'common',    color:'#f39c12'},
+  {id:'akusher',      name:'Акушер',       icon:'🤱', cat:'Специальности', rarity:'rare',      color:'#e91e63'},
+  {id:'stomatolog',   name:'Стоматолог',   icon:'🦷', cat:'Специальности', rarity:'common',    color:'#00bcd4'},
+  {id:'lor',          name:'ЛОР',          icon:'👂', cat:'Специальности', rarity:'common',    color:'#ff9800'},
+  {id:'genetik',      name:'Генетик',      icon:'🧬', cat:'Специальности', rarity:'legendary', color:'#9c27b0'},
+  {id:'mikrobiolog',  name:'Микробиолог',  icon:'🔬', cat:'Специальности', rarity:'epic',      color:'#4caf50'},
+  {id:'farmakolog',   name:'Фармаколог',   icon:'💊', cat:'Специальности', rarity:'rare',      color:'#3f51b5'},
+  // Практика
+  {id:'ukol',         name:'Инъекция',     icon:'💉', cat:'Практика',      rarity:'common',    color:'#2196f3'},
+  {id:'ecg',          name:'ЭКГ',          icon:'📈', cat:'Практика',      rarity:'rare',      color:'#e74c3c'},
+  {id:'lab',          name:'Лаборатория',  icon:'🧪', cat:'Практика',      rarity:'rare',      color:'#9b59b6'},
+  {id:'neotlozhka',   name:'Неотложка',    icon:'🚑', cat:'Практика',      rarity:'epic',      color:'#e74c3c'},
+  {id:'perevyazka',   name:'Перевязочная', icon:'🩹', cat:'Практика',      rarity:'common',    color:'#1abc9c'},
+  // Серии
+  {id:'streak3',      name:'3 дня',        icon:'🔥', cat:'Серии',         rarity:'common',    color:'#ff5722'},
+  {id:'streak7',      name:'7 дней',       icon:'🔥', cat:'Серии',         rarity:'rare',      color:'#ff5722'},
+  {id:'streak30',     name:'30 дней',      icon:'🔥', cat:'Серии',         rarity:'epic',      color:'#ff5722'},
+  {id:'streak100',    name:'100 дней',     icon:'🔥', cat:'Серии',         rarity:'legendary', color:'#ff5722'},
+  {id:'streak365',    name:'365 дней',     icon:'🔥', cat:'Серии',         rarity:'mythic',    color:'#ff5722'},
+  // Секретные
+  {id:'nightshift',   name:'Ночная смена', icon:'🌙', cat:'Секретные',     rarity:'epic',      color:'#1a237e'},
+  {id:'lucky',        name:'Счастливчик',  icon:'🍀', cat:'Секретные',     rarity:'legendary', color:'#388e3c'},
+  {id:'bookworm',     name:'Книжный червь',icon:'📚', cat:'Секретные',     rarity:'rare',      color:'#795548'},
+];
+
+const RARITY_LABEL = {common:'Обычное',rare:'Редкое',epic:'Эпическое',legendary:'Легендарное',mythic:'Мифическое'};
+const RARITY_COLOR = {common:'#6b7280',rare:'#3b82f6',epic:'#8b5cf6',legendary:'#f59e0b',mythic:'#ef4444'};
+
+// 6 слотов на халате: [left%, top%] в % от размера контейнера
+const COAT_SLOTS = [
+  {left:'20%', top:'46%'},  // нагрудный левый
+  {left:'62%', top:'46%'},  // нагрудный правый
+  {left:'18%', top:'63%'},  // средний левый
+  {left:'62%', top:'63%'},  // средний правый
+  {left:'17%', top:'80%'},  // нижний левый
+  {left:'62%', top:'80%'},  // нижний правый
+];
+
+const CAREER = [
+  {icon:'🎓', title:'Абитуриент',    xp:0},
+  {icon:'📚', title:'I курс',        xp:100},
+  {icon:'🩺', title:'II курс',       xp:500},
+  {icon:'💉', title:'III курс',      xp:1500},
+  {icon:'🚑', title:'Фельдшер',      xp:3000},
+  {icon:'⭐', title:'Ст. фельдшер',  xp:6000},
+  {icon:'👨‍⚕️', title:'Наставник',    xp:10000},
+  {icon:'👑', title:'Легенда',       xp:20000},
+];
+
+function getUnlocked() { return JSON.parse(localStorage.medhubUnlocked||'["cardiolog","reanimatolog","streak3"]') }
+function getCoatSlots(){ return JSON.parse(localStorage.medhubCoat||'[null,null,null,null,null,null]') }
+function saveCoatSlots(arr){ localStorage.medhubCoat=JSON.stringify(arr) }
+
+let activeSlotIdx = null;
+
+// ── Рендер нашивки (шестиугольник) ──
+function renderHex(patch, size=80, showName=true) {
+  const h = Math.round(size * 1.1547);
+  const earned = getUnlocked().includes(patch.id);
+  return `<div class="hex-patch ${earned?'':'locked'}" onclick="onPatchClick('${patch.id}')">
+    <div class="hex-shape rarity-${patch.rarity}" style="width:${size}px;height:${h}px">
+      <span class="hex-icon" style="font-size:${Math.round(size*.32)}px">${patch.icon}</span>
+      ${showName?`<span class="hex-name" style="font-size:${Math.round(size*.095)}px">${patch.name.toUpperCase()}</span>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Рендер маленького хекса для пикера ──
+function renderHexSmall(patch) {
+  const earned = getUnlocked().includes(patch.id);
+  if(!earned) return '';
+  const size=60, h=Math.round(size*1.1547);
+  return `<div class="hex-patch" onclick="assignPatch('${patch.id}')" style="text-align:center">
+    <div class="hex-shape rarity-${patch.rarity}" style="width:${size}px;height:${h}px">
+      <span style="font-size:${Math.round(size*.32)}px">${patch.icon}</span>
+    </div>
+    <div style="font-size:9px;color:var(--muted);margin-top:4px;width:${size}px;text-align:center;line-height:1.2">${patch.name}</div>
+  </div>`;
+}
+
+// ── Клик по нашивке в коллекции ──
+function onPatchClick(id) {
+  const patch = PATCHES.find(p=>p.id===id);
+  if(!patch) return;
+  const earned = getUnlocked().includes(id);
+  const rLabel = RARITY_LABEL[patch.rarity];
+  const rColor = RARITY_COLOR[patch.rarity];
+  const msg = earned
+    ? `🎖️ ${patch.name}\n\nРедкость: ${rLabel}\nКатегория: ${patch.cat}\n\nНашивка открыта! Надень её на халат.`
+    : `🔒 ${patch.name}\n\nРедкость: ${rLabel}\nКатегория: ${patch.cat}\n\nЕщё не открыта.`;
+  alert(msg);
+}
+
+// ── Экран коллекции нашивок ──
+let patchCatFilter = 'Все';
+function openPatches() {
+  openScreen('patches');
+  renderPatchFilter();
+  renderPatchGrid();
+}
+function renderPatchFilter() {
+  const cats = ['Все', ...new Set(PATCHES.map(p=>p.cat))];
+  patchFilter.innerHTML = cats.map(c=>
+    `<button class="pill ${c===patchCatFilter?'active':''}" onclick="patchCatFilter='${c}';renderPatchFilter();renderPatchGrid()">${c}</button>`
+  ).join('');
+}
+function renderPatchGrid() {
+  const unlocked = getUnlocked();
+  const list = PATCHES.filter(p => patchCatFilter==='Все' || p.cat===patchCatFilter);
+  const count = list.filter(p=>unlocked.includes(p.id)).length;
+  patchesCount.textContent = `${count} / ${list.length} собрано`;
+  patchGrid.innerHTML = list.map(p => renderHex(p, 90, true)).join('');
+}
+
+// ── Экран халата ──
+function openCoat() {
+  openScreen('coat');
+  renderCoatSlots();
+}
+function renderCoatSlots() {
+  const slotData = getCoatSlots();
+  const unlocked = getUnlocked();
+  const wrap = document.getElementById('coatWrap');
+  const wrapW = wrap.offsetWidth || 340;
+
+  coatSlots.innerHTML = COAT_SLOTS.map((pos, i) => {
+    const patchId = slotData[i];
+    const patch = patchId ? PATCHES.find(p=>p.id===patchId) : null;
+    const size = Math.round(wrapW * 0.19);
+    const h = Math.round(size * 1.1547);
+
+    if(patch) {
+      return `<div class="coat-slot" style="left:${pos.left};top:${pos.top};transform:translate(-50%,-50%)" onclick="openSlotPicker(${i})">
+        <div class="hex-shape rarity-${patch.rarity}" style="width:${size}px;height:${h}px">
+          <span style="font-size:${Math.round(size*.32)}px;position:relative;z-index:1">${patch.icon}</span>
+          <span style="font-size:${Math.round(size*.09)}px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:rgba(255,255,255,.9);position:relative;z-index:1;padding:0 3px;text-align:center;line-height:1.1">${patch.name.toUpperCase()}</span>
+        </div>
+      </div>`;
+    }
+    return `<div class="coat-slot" style="left:${pos.left};top:${pos.top};transform:translate(-50%,-50%)" onclick="openSlotPicker(${i})">
+      <div class="slot-empty" style="width:${size}px;height:${h}px"></div>
+    </div>`;
+  }).join('');
+}
+
+function openSlotPicker(idx) {
+  activeSlotIdx = idx;
+  const unlocked = getUnlocked();
+  const earned = PATCHES.filter(p => unlocked.includes(p.id));
+  pickerGrid.innerHTML = earned.length
+    ? earned.map(p => renderHexSmall(p)).join('')
+    : '<p style="color:var(--muted);grid-column:1/-1;text-align:center">Нашивок пока нет</p>';
+  patchPicker.classList.add('show');
+}
+function closePicker(e) { if(e.target===patchPicker) patchPicker.classList.remove('show') }
+function assignPatch(id) {
+  const slots = getCoatSlots();
+  slots[activeSlotIdx] = id;
+  saveCoatSlots(slots);
+  patchPicker.classList.remove('show');
+  renderCoatSlots();
+  tg?.HapticFeedback?.impactOccurred('medium');
+}
+function clearSlot() {
+  const slots = getCoatSlots();
+  slots[activeSlotIdx] = null;
+  saveCoatSlots(slots);
+  patchPicker.classList.remove('show');
+  renderCoatSlots();
+}
+function resetCoat() {
+  if(!confirm('Сбросить все нашивки с халата?')) return;
+  saveCoatSlots([null,null,null,null,null,null]);
+  renderCoatSlots();
+}
+
+// ── Карьерный путь ──
+function renderCareer() {
+  const xp = parseInt(localStorage.medhubXP||'0');
+  let current = 0;
+  CAREER.forEach((s,i) => { if(xp >= s.xp) current = i; });
+
+  careerPath.innerHTML = CAREER.map((s,i) => {
+    const done = i < current;
+    const active = i === current;
+    const connector = i < CAREER.length-1
+      ? `<div class="career-connector ${done?'done':''}"></div>` : '';
+    return `<div class="career-step ${done?'done':''} ${active?'active':''}">
+      <div class="step-icon">${s.icon}</div>
+      <small>${s.title}</small>
+    </div>${connector}`;
+  }).join('');
+
+  // Обновляем счётчик нашивок в профиле
+  const unlocked = getUnlocked();
+  if(document.getElementById('statPatches')) statPatches.textContent = unlocked.length;
+  if(document.getElementById('statLevel')) statLevel.textContent = current+1;
+  if(document.getElementById('patchesStatus')) patchesStatus.textContent = `Открыто ${unlocked.length} нашивок`;
+}
+
+// Инициализация при открытии профиля
+const _origOpenScreen = openScreen;
+function openScreen(id) {
+  _origOpenScreen(id);
+  if(id==='progress') renderCareer();
+  if(id==='coat') { renderCoatSlots(); renderCareer(); }
+  if(id==='patches') renderCareer();
+}
+renderCareer();
+</script>
+</body>
+</html>
